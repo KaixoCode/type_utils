@@ -1872,6 +1872,7 @@ KAIXO_UNIQUE_99(KAIXO_STRUCT_MEMBERS_M, 99);
         template<class T> constexpr static auto indices = indices_v<T, Tys...>;
         template<class T> constexpr static auto indices_except = indices_except_v<T, Tys...>;
 
+        template<auto Filter> constexpr static auto count_filter = count_filter_v<Filter, Tys...>;
         template<auto Filter> constexpr static auto indices_filter = indices_filter_v<Filter, Tys...>;
 
         template<std::size_t I> using element = info<element_t<I, Tys...>>;
