@@ -1321,6 +1321,74 @@ namespace kaixo {
     template<auto Filter, class Ty>
     using filter_t = typename filter<Filter, Ty>::type;
 
+    template<auto Sorter, class A, class B>
+    constexpr bool type_sorter_result = Sorter.operator() < A, B > ();
+
+    template<auto, class, class> struct type_merge_sort_merge;
+    template<auto Sorter, class A, class ...As, class B, class ...Bs>
+        requires type_sorter_result<Sorter, A, B>
+    struct type_merge_sort_merge<Sorter, info<A, As...>, info<B, Bs...>> {
+        using _recurse = typename type_merge_sort_merge<Sorter, info<As...>, info<B, Bs...>>::type;
+        using type = append_t<_recurse, info<A>>;
+    };
+
+    template<auto Sorter, class A, class ...As, class B, class ...Bs>
+        requires (!type_sorter_result<Sorter, A, B>)
+    struct type_merge_sort_merge<Sorter, info<A, As...>, info<B, Bs...>> {
+        using _recurse = typename type_merge_sort_merge<Sorter, info<A, As...>, info<Bs...>>::type;
+        using type = append_t<_recurse, info<B>>;
+    };
+
+    template<auto Sorter, class ...As>
+    struct type_merge_sort_merge<Sorter, info<As...>, info<>> { using type = info<As...>; };
+
+    template<auto Sorter, class ...Bs>
+    struct type_merge_sort_merge<Sorter, info<>, info<Bs...>> { using type = info<Bs...>; };
+
+    template<auto Sorter, class Ty> struct type_merge_sort
+        : type_merge_sort<Sorter, move_tparams<Ty, info>> {};
+    template<auto Sorter, class ...Tys>
+    struct type_merge_sort<Sorter, info<Tys...>> {
+        constexpr static std::size_t _mid = sizeof...(Tys) / 2.;
+        using _left = typename type_merge_sort<Sorter, typename info<Tys...>::template take<_mid>>::type;
+        using _right = typename type_merge_sort<Sorter, typename info<Tys...>::template drop<_mid>>::type;
+        using type = typename type_merge_sort_merge<Sorter, _left, _right>::type;
+    };
+
+    template<auto Sorter, class Ty>
+    struct type_merge_sort<Sorter, info<Ty>> {
+        using type = info<Ty>;
+    };
+
+    /**
+     * Merge sort algorithm for the template parameters of Ty.
+     * @tparam Sorter lambda that takes 2 template parameters and returns a bool
+     * @tparam Ty templated type
+     */
+    template<auto Sorter, class Ty>
+    using type_merge_sort_t = typename type_merge_sort<Sorter, Ty>::type;
+
+    template<auto Sorter, class Ty>
+    struct sort_types {
+        using type = type_merge_sort_t<Sorter, Ty>;
+    };
+
+    /**
+     * Sorting algorithm for the template parameters of Ty.
+     * @tparam Sorter lambda that takes 2 template parameters and returns a bool
+     * @tparam Ty templated type
+     */
+    template<auto Sorter, class Ty>
+    using sort_types_t = typename type_merge_sort<Sorter, Ty>::type;
+
+    /**
+     * Some often used sorting methods for types.
+     */
+    namespace type_sorters {
+        constexpr auto size = []<class A, class B>{ return sizeof_v<A> < sizeof_v<B>; };
+        constexpr auto alignment = []<class A, class B>{ return alignof_v<A> < alignof_v<B>; };
+    }
+
     /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      *                                                                                                         *
      *                                                                                                         *
@@ -1617,7 +1685,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
 #define KAIXO_UNIQUE_98(m, c, ...) KAIXO_UNIQUE_97(m, c, KAIXO_UNIQUE_NAME, __VA_ARGS__) KAIXO_UNIQUE_1(m, (c - 97), __VA_ARGS__)
 #define KAIXO_UNIQUE_99(m, c, ...) KAIXO_UNIQUE_98(m, c, KAIXO_UNIQUE_NAME, __VA_ARGS__) KAIXO_UNIQUE_1(m, (c - 98), __VA_ARGS__)
 
-KAIXO_UNIQUE_99(KAIXO_STRUCT_MEMBERS_M, 99);
+    KAIXO_UNIQUE_99(KAIXO_STRUCT_MEMBERS_M, 99);
 
     /**
      * Find the member types of a struct.
@@ -1838,7 +1906,7 @@ KAIXO_UNIQUE_99(KAIXO_STRUCT_MEMBERS_M, 99);
 
     template<auto V>
     struct specialized_info<value_t<V>> : info<decltype(V)> {};
-    
+
     /**
      * Base for a pack of types.
      * @tparam ...Tys types
@@ -1896,6 +1964,7 @@ KAIXO_UNIQUE_99(KAIXO_STRUCT_MEMBERS_M, 99);
         using reverse = reverse_t<info>;
 
         template<auto Filter> using filter = filter_t<Filter, info>;
+        template<auto Sorter> using sort = sort_types_t<Sorter, info>;
 
         constexpr static bool is_void = (std::is_void_v<Tys> && ...);
         constexpr static bool is_null_pointer = (std::is_null_pointer_v<Tys> && ...);
