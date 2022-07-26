@@ -1,4 +1,5 @@
 ﻿#include "type_utils.hpp"
+#include <vector>
 
 using namespace kaixo;
 
@@ -47,6 +48,18 @@ int main() {
     // Type manipulation
     static_assert(same_as<info<int&>::add_cvref_from<const int>::type, const int&>);
     static_assert(same_as<info<const int&>::copy_ref_to<int>::type, int&>);
+
+    // Sort types
+    static_assert(same_as<
+        info<uint16_t, uint64_t, uint8_t, uint32_t>::sort<type_sorters::size_desc>,
+        info<uint64_t, uint32_t, uint16_t, uint8_t>
+    >);
+
+    // Transform pack of types
+    static_assert(same_as<
+        info<std::vector<int>, std::vector<double>>::transform<grab::reference>,
+        info<int&, double&>
+    >);
 
     return 0;
 }
