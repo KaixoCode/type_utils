@@ -1386,7 +1386,56 @@ namespace kaixo {
      */
     namespace type_sorters {
         constexpr auto size = []<class A, class B>{ return sizeof_v<A> < sizeof_v<B>; };
+        constexpr auto size_desc = []<class A, class B>{ return sizeof_v<A> > sizeof_v<B>; };
         constexpr auto alignment = []<class A, class B>{ return alignof_v<A> < alignof_v<B>; };
+        constexpr auto alignment_desc = []<class A, class B>{ return alignof_v<A> > alignof_v<B>; };
+    }
+
+    template<template<class...> class T, class Ty>
+    struct transform { using type = T<Ty>; };
+
+    template<template<class...> class T, class ...As>
+    struct transform<T, info<As...>> { using type = info<T<As>...>; };
+
+    template<template<class...> class T, class Ty>
+    using transform_t = typename transform<T, Ty>::type;
+
+    /**
+     * Grab a certain member in a transform operation.
+     * Most member types in the standard are here.
+     */
+    namespace grab {
+        template<class Ty> using type = typename Ty::type;
+        template<class Ty> using value = value_t<Ty::value>;
+        template<class Ty> using off_type = typename Ty::off_type;
+        template<class Ty> using state_type = typename Ty::state_type;
+        template<class Ty> using int_type = typename Ty::int_type;
+        template<class Ty> using pos_type = typename Ty::pos_type;
+        template<class Ty> using char_type = typename Ty::char_type;
+        template<class Ty> using comparison_category = typename Ty::comparison_category;
+        template<class Ty> using traits_type = typename Ty::traits_type;
+        template<class Ty> using string_type = typename Ty::string_type;
+        template<class Ty> using format = typename Ty::format;
+        template<class Ty> using iterator_category = typename Ty::iterator_category;
+        template<class Ty> using iterator_concept = typename Ty::iterator_concept;
+        template<class Ty> using key_type = typename Ty::key_type;
+        template<class Ty> using mapped_type = typename Ty::mapped_type;
+        template<class Ty> using key_compare = typename Ty::key_compare;
+        template<class Ty> using value_compare = typename Ty::value_compare;
+        template<class Ty> using node_type = typename Ty::node_type;
+        template<class Ty> using insert_return_type = typename Ty::insert_return_type;
+        template<class Ty> using value_type = typename Ty::value_type;
+        template<class Ty> using allocator_type = typename Ty::allocator_type;
+        template<class Ty> using size_type = typename Ty::size_type;
+        template<class Ty> using difference_type = typename Ty::difference_type;
+        template<class Ty> using reference = typename Ty::reference;
+        template<class Ty> using const_reference = typename Ty::const_reference;
+        template<class Ty> using pointer = typename Ty::pointer;
+        template<class Ty> using const_pointer = typename Ty::const_pointer;
+        template<class Ty> using iterator = typename Ty::iterator;
+        template<class Ty> using const_iterator = typename Ty::const_iterator;
+        template<class Ty> using reverse_iterator = typename Ty::reverse_iterator;
+        template<class Ty> using const_reverse_iterator = typename Ty::const_reverse_iterator;
     }
 
     /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -1520,10 +1569,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
      *                                                                                                         *
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-    /**
-     * Find amount of members in a struct.
-     * @tparam Ty struct
-     */
+     /**
+      * Find amount of members in a struct.
+      * @tparam Ty struct
+      */
     template<class Ty>
     struct struct_size {
         /**
@@ -1963,6 +2012,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
         using unique = unique_t<info>;
         using reverse = reverse_t<info>;
 
+        template<template<class...> class T> using transform = transform_t<T, info>;
         template<auto Filter> using filter = filter_t<Filter, info>;
         template<auto Sorter> using sort = sort_types_t<Sorter, info>;
 
