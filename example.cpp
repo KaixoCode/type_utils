@@ -10,7 +10,6 @@ struct Struct {
 };
 
 int my_fun(double, long, int, float) { return 1; }
-int my_fun2(double, long, int, float) { return 1; }
 
 enum my_enum { Value1, Value2 };
 
