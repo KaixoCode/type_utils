@@ -329,6 +329,36 @@ namespace kaixo {
     static_assert(std::convertible_to<not_convertible_to<int>, const volatile float>);
 
     /**
+     * Call lambda with array values as template arguments, like
+     * Lambda.operator()<Array[Is]...>();
+     */
+    template<auto Array>
+    constexpr auto iterate = [](auto Lambda) {
+        return[Lambda]<std::size_t ...Is>(std::index_sequence<Is...>) {
+            return Lambda.operator() < Array[Is]... > ();
+        }(std::make_index_sequence<Array.size()>{});
+    };
+
+    template<auto Array, template<std::size_t ...> class Ty>
+    struct array_to_pack {
+        template<class> struct helper;
+        template<std::size_t ...Is>
+        struct helper<std::index_sequence<Is...>> {
+            using type = Ty<Array[Is]...>;
+        };
+
+        using type = typename helper<std::make_index_sequence<Array.size()>>::type;
+    };
+
+    /**
+     * Convert an array of indices to a template pack.
+     * @tparam Array array of std::size_t
+     * @tparam Ty templated type that takes std::size_t's
+     */
+    template<auto Array, template<std::size_t ...> class Ty>
+    using array_to_pack_t = typename array_to_pack<Array, Ty>::type;
+
+    /**
      * Type for a template value.
      * @tparam V template value
      */
@@ -1267,15 +1297,13 @@ namespace kaixo {
     template<std::size_t N, class Ty>
     using drop_t = typename drop<N, Ty>::type;
 
-    template<auto, class> struct keep_at_indices;
+    template<auto, class> struct keep_indices;
     template<auto Array, template<class...> class T, class ...As>
-    struct keep_at_indices<Array, T<As...>> {
-        template<class> struct helper;
-        template<std::size_t ...Is>
-        struct helper<std::index_sequence<Is...>> {
-            using type = T<element_t<Array[Is], As...>...>;
+    struct keep_indices<Array, T<As...>> {
+        template<std::size_t ...Is> struct helper {
+            using type = T<element_t<Is, As...>...>;
         };
-        using type = typename helper<std::make_index_sequence<Array.size()>>::type;
+        using type = typename array_to_pack_t<Array, helper>::type;
     };
 
     /**
@@ -1284,12 +1312,29 @@ namespace kaixo {
      * @tparam T templated type
      */
     template<auto Array, class T>
-    using keep_at_indices_t = typename keep_at_indices<Array, T>::type;
+    using keep_indices_t = typename keep_indices<Array, T>::type;
+
+    template<auto, class> struct remove_indices;
+    template<auto Array, template<class...> class T, class ...As>
+    struct remove_indices<Array, T<As...>> {
+        template<std::size_t ...Is> struct helper {
+            using type = keep_indices_t<generate_indices_v<0, sizeof...(As), Is...>, T<As...>>;
+        };
+        using type = typename array_to_pack_t<Array, helper>::type;
+    };
+
+    /**
+     * Remove the types at the indices in Array.
+     * @tparam Array std::array of indices
+     * @tparam T templated type
+     */
+    template<auto Array, class T>
+    using remove_indices_t = typename remove_indices<Array, T>::type;
 
     template<class, class> struct remove;
     template<class Ty, template<class...> class T, class ...As>
     struct remove<Ty, T<As...>> {
-        using type = typename keep_at_indices<
+        using type = typename keep_indices<
             indices_except_v<Ty, As...>, T<As...>>::type;
     };
 
@@ -1304,7 +1349,7 @@ namespace kaixo {
     template<class, class> struct keep;
     template<class Ty, template<class...> class T, class ...As>
     struct keep<Ty, T<As...>> {
-        using type = typename keep_at_indices<
+        using type = typename keep_indices<
             indices_v<Ty, As...>, T<As...>>::type;
     };
 
@@ -1319,7 +1364,7 @@ namespace kaixo {
     template<std::size_t, class> struct erase;
     template<std::size_t I, template<class...> class T, class ...As>
     struct erase<I, T<As...>> {
-        using type = keep_at_indices_t<
+        using type = keep_indices_t<
             generate_indices_v<0, sizeof...(As), I>, T<As... >>;
     };
 
@@ -1429,13 +1474,38 @@ namespace kaixo {
         L value;
     };
 
+    template<class L, std::size_t I, class Ty>
+    concept _call_type0 = requires (L l) { // Only type -> bool
+        { l.template operator() < Ty > () } -> convertible_to<bool>;
+    };
+
+    template<class L, std::size_t I, class Ty>
+    concept _call_type1 = requires (L l) { // Index, type -> bool
+        { l.template operator() < I, Ty > () } -> convertible_to<bool>;
+    };
+
+    template<class L, std::size_t I, class Ty>
+    concept _call_type2 = requires (L l) { // Only index -> bool
+        { l.template operator() < I > () } -> convertible_to<bool>;
+    };
+
+    template<class L, std::size_t I, class Ty>
+    concept _call_type3 = requires (L l) { // Type -> void (type constraint)
+        { l.template operator() < Ty > () } -> same_as<void>;
+    };
+
+    template<class L, std::size_t I, class Ty> // Type trait
+    concept _call_type4 = requires (L) { L::template value<Ty>; };
+
+    template<class L, std::size_t I, class Ty>// Value
+    concept _call_type5 = requires(L l) { { l == Ty::value } -> convertible_to<bool>; };
+
     template<class L>
     struct wrap_filter_object { using type = filter_object_wrapper<L>; };
-    template<std::invocable L>
-    struct wrap_filter_object<L> { using type = L; };
     template<class L> requires
         requires (L) { { L::template value<int> } -> convertible_to<bool>; }
     struct wrap_filter_object<L> { using type = L; };
+
 
     /**
      * Filter object with operator overloads for several cases
@@ -1444,37 +1514,38 @@ namespace kaixo {
      */
     template<class L>
     struct filter_object : wrap_filter_object<L>::type {
-
-        // Operator can't be instantiated with Ty
-        template<class Ty> requires (!requires (L l) {
-            { l.template operator() < Ty > () };
-        }) consteval bool operator()() {
-            // if it's a type trait object instead of a lambda
-            if constexpr (requires (L) { L::template value<Ty>; }) return L::template value<Ty>;
-            else if constexpr (requires(L l) { { l == Ty::value } -> convertible_to<bool>; })
-                return this->value == Ty::value;
+        template<std::size_t I, class Ty> consteval bool call() {
+            if constexpr (_call_type0<L, I, Ty>) return this->value.template operator() < Ty > ();
+            else if constexpr (_call_type1<L, I, Ty>) return this->value.template operator() < I, Ty > ();
+            else if constexpr (_call_type2<L, I, Ty>) return this->value.template operator() < I > ();
+            else if constexpr (_call_type3<L, I, Ty>) return true;
+            else if constexpr (_call_type4<L, I, Ty>) return L::template value<Ty>;
+            else if constexpr (_call_type5<L, I, Ty>) return this->value == Ty::value;
             else return false; // Otherwise always return false
         }
-        // Operator can be instantiated and returns a bool
-        template<class Ty> requires (requires (L l) {
-            { l.template operator() < Ty > () } -> std::same_as<bool>;
-        }) consteval bool operator()() { // Call operator
-            return L::template operator() < Ty > ();
-        }
-        // Operator can be instantiated but returns void
-        // This means concept constraint on template parameter.
-        // if it matches, return true
-        template<class Ty> requires requires (L l) {
-            { l.template operator() < Ty > () } -> std::same_as<void>;
-        } consteval bool operator()() { return true; }
     };
 
     template<class T> filter_object(T)->filter_object<T>;
 
     template<auto Filter, class ...Args>
-    struct count_filter : std::integral_constant < std::size_t, [] {
-        return ((static_cast<std::size_t>(filter_object{ Filter }.operator() < Args > ())) + ...);
-    }() > {};
+    consteval std::size_t count_filter_impl(info<Args...>) {
+        return ((static_cast<std::size_t>(filter_object{ Filter }.
+            template call<Args::template element<0>::value,
+            typename Args::template element<1>::type>())) + ...);
+    }
+
+    template<auto Filter, class ...Args>
+    struct count_filter {
+        template<class> struct helper;
+        template<std::size_t ...Is>
+        struct helper<std::index_sequence<Is...>> {
+            consteval static std::size_t value() {
+                return ((static_cast<std::size_t>(filter_object{ Filter }.template call<Is, Args>())) + ...);
+            }
+        };
+
+        constexpr static std::size_t value = helper<std::index_sequence_for<Args...>>::value();
+    };
 
     /**
      * Amount of types in ...Args that match Filter.
@@ -1490,8 +1561,10 @@ namespace kaixo {
             count_filter_v<Filter, Args...>> value = [] {
             std::array<std::size_t, count_filter_v<Filter, Args...>> _indices{};
             std::size_t _index = 0, _match = 0;
-            ((filter_object{ Filter }.operator() < Args > () ?
-                _indices[_match++] = _index++ : ++_index), ...);
+            [&] <std::size_t ...Is>(std::index_sequence<Is...>) {
+                ((filter_object{ Filter }.template call<Is, Args>() ?
+                    _indices[_match++] = _index++ : ++_index), ...);
+            }(std::index_sequence_for<Args...>{});
             return _indices;
         }();
     };
@@ -2208,9 +2281,6 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     template<class Ty>
     using add_pointer_t = typename add_pointer<Ty>::type;
 
-
-
-
     /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      *                                                                                                         *
      *                                                                                                         *
@@ -2456,6 +2526,9 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
 
         template<std::size_t A, std::size_t B> using sub = sub_t<A, B, info>;
 
+        template<auto Array> using remove_indices = remove_indices_t<Array, info>;
+        template<auto Array> using keep_indices = keep_indices_t<Array, info>;
+
         template<class T> using remove = remove_t<T, info>;
         template<class T> using keep = keep_t<T, info>;
 
@@ -2618,7 +2691,6 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
         using add_pointer = info<kaixo::add_pointer_t<Tys>...>;
 
         template<class Ty> using to_function_args = info<Ty(Tys...)>;
-        //template<class ...Args> using to_function_result = info<Tys(Args...)...>;
         template<class Ty> using to_member_pointer = info<kaixo::remove_reference_t<Tys> Ty::* ...>;
     };
 
@@ -2636,16 +2708,8 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     template<class Ty>
     using as_info = move_tparams_t<Ty, info>;
 
-    /**
-     * Call lambda with array values as template arguments, like
-     * Lambda.operator()<Array[Is]...>();
-     */
-    template<auto Array>
-    constexpr auto iterate = [](auto Lambda) {
-        return[Lambda]<std::size_t ...Is>(std::index_sequence<Is...>) {
-            return Lambda.operator() < Array[Is]... > ();
-        }(std::make_index_sequence<Array.size()>{});
-    };
+    template<std::size_t ...Is>
+    constexpr std::array<std::size_t, sizeof...(Is)> as_array{ Is... };
 
     /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      *                                                                                                         *
@@ -2737,6 +2801,36 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
         }
 
         /**
+         * Insert ...Tys at index I in ...Args.
+         * Be careful!! This class doesn't take ownership of anything.
+         * Make sure temporaries and references remain valid while using this!!
+         * @param ...args arguments to insert
+         * @tparam I index to insert at
+         */
+        template<std::size_t I, class ...Tys, class Self, class Type
+            = typename types::template insert<I, info<Tys...>>::template as<kaixo::template_pack>>
+            constexpr Type insert(this Self&& self, Tys&& ...args) {
+            return sequence<I>([&]<std::size_t ...Is>{
+                return sequence<I, types::size>([&]<std::size_t ...Ns>{
+                    return Type{ std::get<Is>(self)..., args..., std::get<Ns>(self)... };
+                });
+            });
+        }
+
+        /**
+         * Swap value at index I with argument.
+         * Be careful!! This class doesn't take ownership of anything.
+         * Make sure temporaries and references remain valid while using this!!
+         * @param arg arguments to swap
+         * @tparam I index to swap with
+         */
+        template<std::size_t I, class Ty, class Self, class Type
+            = typename types::template swap<I, Ty>::template as<kaixo::template_pack>>
+            constexpr Type swap(this Self&& self, Ty&& arg) {
+            return std::forward<Self>(self).erase<I>().template insert<I>(std::forward<Ty>(arg));
+        }
+
+        /**
          * Get a sub region of the elements in the pack.
          * @tparam A start index
          * @tparam B end index
@@ -2755,8 +2849,20 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<class R, class Self,
             auto Indices = types::decay::template indices_except<R>,
-            class Type = typename keep_at_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
             constexpr auto remove(this Self&& self) -> Type {
+            return iterate<Indices>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Only keep at Indices.
+         * @tparam R type to remove, or info<Types...> for multiple
+         */
+        template<auto Indices, class Self,
+            class Type = typename remove_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            constexpr auto remove_indices(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
                 return Type{ std::get<Is>(self)... };
             });
@@ -2768,7 +2874,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<class R, class Self,
             auto Indices = types::template indices_except<R>,
-            class Type = typename keep_at_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
             constexpr auto remove_raw(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
                 return Type{ std::get<Is>(self)... };
@@ -2781,8 +2887,20 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<class R, class Self,
             auto Indices = types::decay::template indices<R>,
-            class Type = typename keep_at_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
             constexpr auto keep(this Self&& self) -> Type {
+            return iterate<Indices>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Only keep at Indices.
+         * @tparam R type to remove, or info<Types...> for multiple
+         */
+        template<auto Indices, class Self,
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            constexpr auto keep_indices(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
                 return Type{ std::get<Is>(self)... };
             });
@@ -2794,7 +2912,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<class R, class Self,
             auto Indices = types::template indices<R>,
-            class Type = typename keep_at_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
             constexpr auto keep_raw(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
                 return Type{ std::get<Is>(self)... };
@@ -2802,10 +2920,38 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
         }
 
         /**
+         * Append ...Tys to ...Args.
+         * Be careful!! This class doesn't take ownership of anything.
+         * Make sure temporaries and references remain valid while using this!!
+         * @param ...args arguments to append
+         */
+        template<class ...Tys, class Self>
+        constexpr auto append(this Self&& self, Tys&&...args)
+            -> template_pack<Args..., Tys...> {
+            return sequence<types::size>([&]<std::size_t ...Is> {
+                return template_pack<Args..., Tys...>{ std::get<Is>(self)..., args... };
+            });
+        }
+
+        /**
+         * Append ...Tys to ...Args.
+         * Be careful!! This class doesn't take ownership of anything.
+         * Make sure temporaries and references remain valid while using this!!
+         * @param ...args arguments to append
+         */
+        template<class ...Tys, class Self>
+        constexpr auto prepend(this Self&& self, Tys&&...args)
+            -> template_pack<Tys..., Args...> {
+            return sequence<types::size>([&]<std::size_t ...Is> {
+                return template_pack<Tys..., Args...>{ args..., std::get<Is>(self)... };
+            });
+        }
+
+        /**
          * Only keep the first occurence of a type.
          */
         template<class Self,
-            class Type = typename keep_at_indices_t<first_indices_v<typename types::decay>,
+            class Type = typename keep_indices_t<first_indices_v<typename types::decay>,
             types>::template as<kaixo::template_pack>>
             constexpr auto unique(this Self&& self) -> Type {
             return iterate<first_indices_v<typename types::decay>>([&]<std::size_t ...Is>{
@@ -2830,7 +2976,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<auto Filter, class Self,
             auto Indices = types::decay::template indices_filter<Filter>,
-            class Type = typename keep_at_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
             constexpr auto filter(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
                 return Type{ std::get<Is>(self)... };
