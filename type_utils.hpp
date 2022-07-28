@@ -437,7 +437,7 @@ namespace kaixo {
         constexpr auto name = value_name_impl<V>();
         if constexpr (name.data() == nullptr) return string_literal<1>{ "\0" };
         else return string_literal<name.size() + 1>{ name };
-    }(); 
+    }();
 
     /**
      * Get pretty function name from string_view containing
@@ -526,7 +526,7 @@ namespace kaixo {
         constexpr auto name = function_name_impl<V>();
         if constexpr (name.data() == nullptr) return string_literal<1>{ "\0" };
         else return string_literal<name.size() + 1>{ name };
-    }(); 
+    }();
 
     /**
      * Get type name from function signature.
@@ -558,7 +558,7 @@ namespace kaixo {
         constexpr auto name = type_name_impl<V>();
         if constexpr (name.data() == nullptr) return string_literal<1>{ "\0" };
         else return string_literal<name.size() + 1>{ name };
-    }(); 
+    }();
 
     /**
      * Basically sizeof(Ty), but special case for
@@ -1197,6 +1197,9 @@ namespace kaixo {
         return _match;
     }() > {};
 
+    template<class ...Args>
+    struct unique_count<info<Args...>> : unique_count<Args...> {};
+
     /**
      * Amount of unique types in ...Args.
      * @tparam ...Args types
@@ -1214,6 +1217,9 @@ namespace kaixo {
             return _result;
         }();
     };
+
+    template<class ...Args>
+    struct first_indices<info<Args...>> : first_indices<Args...> {};
 
     /**
      * Get the index of the first occurence of each type in ...Args.
@@ -1419,15 +1425,15 @@ namespace kaixo {
 
     template<class L>
     struct filter_object_wrapper {
-        consteval filter_object_wrapper(L value) : value(value){}
-        L value; 
+        consteval filter_object_wrapper(L value) : value(value) {}
+        L value;
     };
 
-    template<class L> 
+    template<class L>
     struct wrap_filter_object { using type = filter_object_wrapper<L>; };
     template<std::invocable L>
     struct wrap_filter_object<L> { using type = L; };
-    template<class L> requires 
+    template<class L> requires
         requires (L) { { L::template value<int> } -> convertible_to<bool>; }
     struct wrap_filter_object<L> { using type = L; };
 
@@ -2239,7 +2245,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     struct specialized_info_fun0;
 
     template<class ...Tys> requires (sizeof...(Tys) > 1)
-    struct specialized_info_fun0<Tys...> {
+        struct specialized_info_fun0<Tys...> {
         using arguments = info<typename function_info<Tys>::arguments...>;
     };
 
@@ -2290,7 +2296,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     template<class ...Tys>
         requires ((callable_type<Tys> && ...) && (!pointer<Tys> && ...))
     struct specialized_info<Tys...> : specialized_info_fun2<Tys...> {
-        using _selected_specialization = _s_fun; 
+        using _selected_specialization = _s_fun;
     };
 
     /**
@@ -2387,9 +2393,9 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
 
         constexpr static auto value = V;
     };
-    
+
     template<auto ...Vs> requires (sizeof...(Vs) > 1)
-    struct specialized_info<value_t<Vs>...> : info<decltype(Vs)...> {
+        struct specialized_info<value_t<Vs>...> : info<decltype(Vs)...> {
         using _selected_specialization = _s_value;
 
         template<std::size_t I> constexpr static auto value = element_t<I, value_t<Vs>...>::value;
@@ -2403,7 +2409,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
      * @tparam ...Tys types
      */
     template<class ...Tys> requires (sizeof...(Tys) > 1)
-    struct info_base<Tys...> : specialized_info<Tys...> {
+        struct info_base<Tys...> : specialized_info<Tys...> {
         template<std::size_t I>
         using type = element_t<I, Tys...>;
 
@@ -2463,6 +2469,9 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
         template<template<class...> class T> using as = T<Tys...>;
         template<auto Filter> using filter = filter_t<Filter, info>;
         template<auto Sorter> using sort = sort_types_t<Sorter, info>;
+        constexpr static auto for_each = []<class Ty>(Ty && lambda) {
+            return lambda.operator() < Tys... > ();
+        };
 
         using is_void = info<value_t<std::is_void_v<Tys>>...>;
         using is_null_pointer = info<value_t<std::is_null_pointer_v<Tys>>...>;
@@ -2626,6 +2635,231 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
      */
     template<class Ty>
     using as_info = move_tparams_t<Ty, info>;
+
+    /**
+     * Call lambda with array values as template arguments, like
+     * Lambda.operator()<Array[Is]...>();
+     */
+    template<auto Array>
+    constexpr auto iterate = [](auto Lambda) {
+        return[Lambda]<std::size_t ...Is>(std::index_sequence<Is...>) {
+            return Lambda.operator() < Array[Is]... > ();
+        }(std::make_index_sequence<Array.size()>{});
+    };
+
+    /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+     *                                                                                                         *
+     *                                                                                                         *
+     *                                                                                                         *
+     *                                     template pack value helper.                                         *
+     *                                                                                                         *
+     *                                                                                                         *
+     *                                                                                                         *
+     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+     /**
+      * Helper for dealing with the actual values in a template pack.
+      * Used like this:
+      *
+      * template<class ...Tys>
+      * void my_fun(Tys&&...tys) {
+      *     template_pack<Tys...> vals{ tys... };
+      *     vals.get<0>(); // etc...
+      *
+      * @tparam ...Args types
+      */
+    template<class ...Args> struct template_pack : std::tuple<Args&&...>, info<Args...> {
+        using types = info<Args...>;
+
+        constexpr template_pack(Args&...args)
+            : std::tuple<Args&&...>{ std::forward<Args>(args)... } {}
+
+        /**
+         * Get the template pack as a tuple.
+         */
+        template<class Self>
+        constexpr std::tuple<Args&&...> as_tuple(this Self&& self) { return std::forward<Self>(self); }
+
+        /**
+         * Get I'th element in pack.
+         * @tparam I index
+         */
+        template<std::size_t I, class Self, class Type
+            = typename types::template element<I>::type>
+        constexpr auto get(this Self&& self) -> Type&& {
+            return std::forward<Type>(std::get<I>(std::forward<Self>(self)));
+        }
+
+        /**
+         * Take I elements from pack.
+         * @tparam I amount of elements to take
+         */
+        template<std::size_t I, class Self, class Type
+            = typename types::template take<I>::template as<kaixo::template_pack>>
+            constexpr auto take(this Self&& self) -> Type {
+            return sequence<I>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Get last I elements from pack.
+         * @tparam I amount of elements
+         */
+        template<std::size_t I, class Self, class Type
+            = typename types::template take<I>::template as<kaixo::template_pack>>
+            constexpr auto last(this Self&& self) -> Type {
+            return std::forward<Self>(self).drop<types::size - I>();
+        }
+
+        /**
+         * Drop the first I elements from pack.
+         * @tparam I amount of elements
+         */
+        template<std::size_t I, class Self, class Type
+            = typename types::template drop<I>::template as<kaixo::template_pack>>
+            constexpr auto drop(this Self&& self) -> Type {
+            return sequence<I, types::size>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Erase the element at index I.
+         * @tparam I index of element
+         */
+        template<std::size_t I, class Self, class Type
+            = typename types::template erase<I>::template as<kaixo::template_pack>>
+            constexpr auto erase(this Self&& self) -> Type {
+            return iterate<generate_indices_v<0, types::size, I>>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Get a sub region of the elements in the pack.
+         * @tparam A start index
+         * @tparam B end index
+         */
+        template<std::size_t A, std::size_t B, class Self, class Type
+            = typename types::template sub<A, B>::template as<kaixo::template_pack>>
+            constexpr auto sub(this Self&& self) -> Type {
+            return iterate<generate_indices_v<A, B>>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Remove type R from the pack. Decays types first!!
+         * @tparam R type to remove, or info<Types...> for multiple
+         */
+        template<class R, class Self,
+            auto Indices = types::decay::template indices_except<R>,
+            class Type = typename keep_at_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            constexpr auto remove(this Self&& self) -> Type {
+            return iterate<Indices>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Remove type R from the pack, but doesn't decay types.
+         * @tparam R type to remove, or info<Types...> for multiple
+         */
+        template<class R, class Self,
+            auto Indices = types::template indices_except<R>,
+            class Type = typename keep_at_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            constexpr auto remove_raw(this Self&& self) -> Type {
+            return iterate<Indices>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Only keep type R in the pack. Decays types first!!
+         * @tparam R type to remove, or info<Types...> for multiple
+         */
+        template<class R, class Self,
+            auto Indices = types::decay::template indices<R>,
+            class Type = typename keep_at_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            constexpr auto keep(this Self&& self) -> Type {
+            return iterate<Indices>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Only keep type R in the pack, but doesn't decays.
+         * @tparam R type to remove, or info<Types...> for multiple
+         */
+        template<class R, class Self,
+            auto Indices = types::template indices<R>,
+            class Type = typename keep_at_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            constexpr auto keep_raw(this Self&& self) -> Type {
+            return iterate<Indices>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Only keep the first occurence of a type.
+         */
+        template<class Self,
+            class Type = typename keep_at_indices_t<first_indices_v<typename types::decay>,
+            types>::template as<kaixo::template_pack>>
+            constexpr auto unique(this Self&& self) -> Type {
+            return iterate<first_indices_v<typename types::decay>>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Reverse the pack.
+         */
+        template<class Self,
+            class Type = typename types::reverse::template as<kaixo::template_pack>>
+            constexpr auto reverse(this Self&& self) -> Type {
+            return sequence<0, types::size>([&]<std::size_t ...Is>{
+                return Type{ std::get<types::size - Is - 1>(self)... };
+            });
+        }
+
+        /**
+         * Filter the pack with a lambda or type trait object.
+         * @tparam Filter lambda or type trait object
+         */
+        template<auto Filter, class Self,
+            auto Indices = types::decay::template indices_filter<Filter>,
+            class Type = typename keep_at_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            constexpr auto filter(this Self&& self) -> Type {
+            return iterate<Indices>([&]<std::size_t ...Is>{
+                return Type{ std::get<Is>(self)... };
+            });
+        }
+
+        /**
+         * Call the functor once for every element in the pack.
+         * Lambda has to be callable with all the types!
+         * @param functor functor
+         */
+        template<class Functor, class Self>
+        constexpr void for_each(this Self&& self, Functor&& functor) {
+            sequence<0, types::size>([&]<std::size_t ...Is>{
+                (functor(self.template get<Is>()), ...);
+            });
+        }
+
+        /**
+         * Call the functor with all elements of pack.
+         * @param functor functor
+         */
+        template<class Functor, class Self>
+        constexpr decltype(auto) call(this Self&& self, Functor&& functor) {
+            return sequence<0, types::size>([&]<std::size_t ...Is>() -> decltype(auto) {
+                return functor(self.template get<Is>()...);
+            });
+        }
+    };
 
     /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      *                                                                                                         *
