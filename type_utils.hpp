@@ -177,6 +177,8 @@ namespace kaixo {
         CharType m_Data[N]{};
     };
 
+    template<class ...Tys> struct info;
+
     /**
      * Find the closes larger power of 2.
      * @param v value
@@ -359,6 +361,49 @@ namespace kaixo {
     using array_to_pack_t = typename array_to_pack<Array, Ty>::type;
 
     /**
+     * Partially specialize T by setting the first
+     * template parameters to ...As
+     * @tparam T templated type
+     * @tparam ...As forward_types to
+     */
+    template<template<class...> class T, class ...As>
+    struct partial_first {
+        template<class ...Bs>
+        using type = T<As..., Bs...>;
+    };
+    template<template<class...> class T, class ...As>
+    using partial = partial_first<T, As...>;
+
+    template<class ...Tys>
+    struct tparams {
+        using type = info<typename tparams<Tys>::type...>;
+    };
+    template<class Ty> struct tparams<Ty> { using type = Ty; };
+    template<template<class...> class T, class ...Tys>
+    struct tparams<T<Tys...>> {
+        using type = info<Tys...>;
+    };
+
+    /**
+     * Get the template parameters from a templated type.
+     * @tparam Ty templated type
+     */
+    template<class ...Tys>
+    using tparams_t = typename tparams<Tys...>::type;
+
+    /**
+     * Partially specialize T by setting the first
+     * template parameters to ...As
+     * @tparam T templated type
+     * @tparam ...As forward_types to
+     */
+    template<template<class...> class T, class ...As>
+    struct partial_last {
+        template<class ...Bs>
+        using type = T<Bs..., As...>;
+    };
+
+    /**
      * Type for a template value.
      * @tparam V template value
      */
@@ -368,8 +413,47 @@ namespace kaixo {
     };
 
     /**
+     * Wrapper for a templated type.
+     * @tparam T templated type
+     */
+    template<template<class...> class T>
+    struct templated_t {
+        template<class ...Args>
+        using type = T<Args...>;
+    };
+
+    template<class Ty> struct uninstantiate { using type = Ty; };
+    template<template<class...> class T, class ...Tys>
+    struct uninstantiate<T<Tys...>> {
+        using type = templated_t<T>;
+    };
+
+    /**
+     * Remove template parameters from templated type.
+     * @tparam Ty templated type
+     */
+    template<class Ty>
+    using uninstantiate_t = typename uninstantiate<Ty>::type;
+
+    template<template<class...> class T, class ...Tys>
+    struct instantiate {
+        using type = T<Tys...>;
+    };
+    template<template<class...> class T, class ...Tys>
+    struct instantiate<T, info<Tys...>> {
+        using type = T<Tys...>;
+    };
+
+    /**
+     * Specialize a templated type.
+     * @tparam Ty templated type
+     */
+    template<template<class...> class T, class ...Tys>
+    using instantiate_t = typename instantiate<T, Tys...>::type;
+
+    /**
      * Overloaded Functor.
-     * @tparam Functors... functor types
+     * @tparam Functors... functor forward_types
      */
     template<class ...Functors>
     struct overloaded : Functors... {
@@ -613,7 +697,6 @@ namespace kaixo {
         else return std::alignment_of_v<Ty>;
     }();
 
-    template<class ...Tys> struct info;
 
     /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
      *                                                                                                         *
@@ -771,7 +854,7 @@ namespace kaixo {
     };
 
     /**
-     * Partially applied type trait, where last types
+     * Partially applied type trait, where last forward_types
      * are provided.
      * @tparam A type trait
      * @tparam Tys... provided arguments
@@ -784,7 +867,7 @@ namespace kaixo {
     };
 
     /**
-     * Partially applied type trait, where last types
+     * Partially applied type trait, where last forward_types
      * are provided in a pack.
      * @tparam A type trait
      * @tparam Tys... provided arguments
@@ -797,7 +880,7 @@ namespace kaixo {
     };
 
     /**
-     * Partially applied type trait, where first types
+     * Partially applied type trait, where first forward_types
      * are provided.
      * @tparam A type trait
      * @tparam Tys... provided arguments
@@ -810,7 +893,7 @@ namespace kaixo {
     };
 
     /**
-     * Partially applied type trait, where first types
+     * Partially applied type trait, where first forward_types
      * are provided in a pack.
      * @tparam A type trait
      * @tparam Tys... provided arguments
@@ -832,12 +915,16 @@ namespace kaixo {
         constexpr static bool value = Trait<Tys...>::value;
     };
 
+    template<class> struct is_type_trait_impl : std::false_type {};
+    template<template<class ...> class T>
+    struct is_type_trait_impl<type_trait<T>> : std::true_type {};
+
     /**
      * Check if Ty is a type trait object.
      * @tparam Ty type
      */
     template<class Ty>
-    concept is_type_trait = std::convertible_to<decltype(Ty::template value<int>), bool>;
+    concept is_type_trait = is_type_trait_impl<Ty>::value;
 
     /**
      * Boolean and on 2 type traits
@@ -1001,8 +1088,8 @@ namespace kaixo {
     struct indexer_impl<std::index_sequence<Is...>, Args...> : indexed<Is, Args>... {};
 
     /**
-     * Maps indices to all types in ...Args.
-     * @tparam ...Args types
+     * Maps indices to all forward_types in ...Args.
+     * @tparam ...Args forward_types
      */
     template<class ...Args>
     using indexer = indexer_impl<std::index_sequence_for<Args...>, Args...>;
@@ -1013,8 +1100,8 @@ namespace kaixo {
         : indexed<sizeof...(Args) - Is - 1, Args>... {};
 
     /**
-     * Maps indices in decending order to all types in ...Args.
-     * @tparam ...Args types
+     * Maps indices in decending order to all forward_types in ...Args.
+     * @tparam ...Args forward_types
      */
     template<class ...Args>
     using reverse_indexer = reverse_indexer_impl<
@@ -1034,7 +1121,7 @@ namespace kaixo {
     /**
      * Get the I'th type in ...Args.
      * @tparam I index
-     * @tparam ...Args types
+     * @tparam ...Args forward_types
      */
     template<std::size_t I, class ...Args>
     using element_t = typename element<I, Args...>::type;
@@ -1052,7 +1139,7 @@ namespace kaixo {
     /**
      * Get the first index of Ty in ...Args.
      * @tparam Ty type to find index of
-     * @tparam ...Args types
+     * @tparam ...Args forward_types
      */
     template<class Ty, class ...Args>
     constexpr std::size_t index_v = index<Ty, Args...>::value;
@@ -1071,7 +1158,7 @@ namespace kaixo {
     /**
      * Get the last index of Ty in ...Args.
      * @tparam Ty type to find index of
-     * @tparam ...Args types
+     * @tparam ...Args forward_types
      */
     template<class Ty, class ...Args>
     constexpr std::size_t last_index_v = last_index<Ty, Args...>::value;
@@ -1085,7 +1172,7 @@ namespace kaixo {
     /**
      * Count the number of occurences of Ty in ...Args.
      * @tparam Ty type to count
-     * @tparam ...Args types
+     * @tparam ...Args forward_types
      */
     template<class Ty, class ...Args>
     constexpr std::size_t count_v = count<Ty, Args...>::value;
@@ -1099,7 +1186,7 @@ namespace kaixo {
     /**
      * Check if Ty occurs in ...Args.
      * @tparam Ty type to check
-     * @tparam ...Args types
+     * @tparam ...Args forward_types
      */
     template<class Ty, class ...Args>
     constexpr bool occurs_v = occurs<Ty, Args...>::value;
@@ -1159,7 +1246,7 @@ namespace kaixo {
     /**
      * Indices of Ty in ...Args.
      * @tparam Ty type, or info<Types...> for multiple
-     * @tparam ...Args types
+     * @tparam ...Args forward_types
      */
     template<class Ty, class ...Args>
     constexpr auto indices_v = indices<Ty, Args...>::value;
@@ -1196,7 +1283,7 @@ namespace kaixo {
     /**
      * Indices of Ty in ...Args.
      * @tparam Ty type, or info<Types...> for multiple
-     * @tparam ...Args types
+     * @tparam ...Args forward_types
      */
     template<class Ty, class ...Args>
     constexpr auto indices_except_v = indices_except<Ty, Args...>::value;
@@ -1231,8 +1318,8 @@ namespace kaixo {
     struct unique_count<info<Args...>> : unique_count<Args...> {};
 
     /**
-     * Amount of unique types in ...Args.
-     * @tparam ...Args types
+     * Amount of unique forward_types in ...Args.
+     * @tparam ...Args forward_types
      */
     template<class ...Args>
     constexpr std::size_t unique_count_v = unique_count<Args...>::value;
@@ -1253,7 +1340,7 @@ namespace kaixo {
 
     /**
      * Get the index of the first occurence of each type in ...Args.
-     * @tparam ...Args types
+     * @tparam ...Args forward_types
      */
     template<class ...Args>
     constexpr std::array<std::size_t, unique_count_v<Args...>>
@@ -1271,8 +1358,8 @@ namespace kaixo {
     };
 
     /**
-     * Take N types from the templated type Ty.
-     * @tparam N amount of types to take
+     * Take N forward_types from the templated type Ty.
+     * @tparam N amount of forward_types to take
      * @tparam Ty templated type
      */
     template<std::size_t N, class Ty>
@@ -1290,12 +1377,31 @@ namespace kaixo {
     };
 
     /**
-     * Drop N types from the templated type Ty.
-     * @tparam N amount of types to drop
+     * Drop N forward_types from the templated type Ty.
+     * @tparam N amount of forward_types to drop
      * @tparam Ty templated type
      */
     template<std::size_t N, class Ty>
     using drop_t = typename drop<N, Ty>::type;
+
+    template<std::size_t, class> struct drop_last;
+    template<std::size_t N, template<class...> class T, class ...As>
+    struct drop_last<N, T<As...>> {
+        template<class> struct helper;
+        template<std::size_t ...Is>
+        struct helper<std::index_sequence<Is...>> {
+            using type = T<element_t<Is, As...>...>;
+        };
+        using type = typename helper<std::make_index_sequence<sizeof...(As) - N>>::type;
+    };
+
+    /**
+     * Drop last N forward_types from the templated type Ty.
+     * @tparam N amount of forward_types to drop
+     * @tparam Ty templated type
+     */
+    template<std::size_t N, class Ty>
+    using drop_last_t = typename drop_last<N, Ty>::type;
 
     template<auto, class> struct keep_indices;
     template<auto Array, template<class...> class T, class ...As>
@@ -1307,7 +1413,7 @@ namespace kaixo {
     };
 
     /**
-     * Only keep the types at the indices in Array.
+     * Only keep the forward_types at the indices in Array.
      * @tparam Array std::array of indices
      * @tparam T templated type
      */
@@ -1324,7 +1430,7 @@ namespace kaixo {
     };
 
     /**
-     * Remove the types at the indices in Array.
+     * Remove the forward_types at the indices in Array.
      * @tparam Array std::array of indices
      * @tparam T templated type
      */
@@ -1449,7 +1555,7 @@ namespace kaixo {
     };
 
     /**
-     * Only keep unique types in the template parameters of Ty.
+     * Only keep unique forward_types in the template parameters of Ty.
      * @tparam Ty templated type
      */
     template<class Ty>
@@ -1459,7 +1565,7 @@ namespace kaixo {
     using sub_t = take_t<(E - S), drop_t<S, Ty>>;
 
     /**
-     * Only keep the types from index S to E in the
+     * Only keep the forward_types from index S to E in the
      * template parameters of Ty.
      * @tparam Ty templated type
      */
@@ -1548,9 +1654,9 @@ namespace kaixo {
     };
 
     /**
-     * Amount of types in ...Args that match Filter.
+     * Amount of forward_types in ...Args that match Filter.
      * @tparam Filter lambda or type trait object
-     * @tparam ...Args types
+     * @tparam ...Args forward_types
      */
     template<auto Filter, class ...Args>
     constexpr std::size_t count_filter_v = count_filter<Filter, Args...>::value;
@@ -1573,10 +1679,10 @@ namespace kaixo {
     struct indices_filter<Filter, info<Args...>> : indices_filter<Filter, Args...> {};
 
     /**
-     * Get indices of types in ...Args that match Filter
+     * Get indices of forward_types in ...Args that match Filter
      * given in the form of a Lambda, or type trait object.
      * @tparam Filter lambda or type trait object
-     * @tparam ...Args types
+     * @tparam ...Args forward_types
      */
     template<auto Filter, class ...Args>
     constexpr std::array<std::size_t, count_filter_v<Filter, Args...>>
@@ -1663,7 +1769,7 @@ namespace kaixo {
     using sort_types_t = typename type_merge_sort<Sorter, Ty>::type;
 
     /**
-     * Some often used sorting methods for types.
+     * Some often used sorting methods for forward_types.
      */
     namespace type_sorters {
         constexpr auto size = []<class A, class B>{ return sizeof_v<A> < sizeof_v<B>; };
@@ -1672,22 +1778,111 @@ namespace kaixo {
         constexpr auto alignment_desc = []<class A, class B>{ return alignof_v<A> > alignof_v<B>; };
     }
 
+    template<class...>struct concat;
+    template<template<class...> class A, class ...As>
+    struct concat<A<As...>> { using type = A<As...>; };
+    template<template<class...> class A, template<class...> class B, class ...As, class ...Bs, class ...Rest>
+    struct concat<A<As...>, B<Bs...>, Rest...> { using type = typename concat<B<As..., Bs...>, Rest...>::type; };
+
+    /**
+     * Concat all template parameters of all templated
+     * forward_types in ...Tys.
+     * @tparam ...Tys templated forward_types
+     */
+    template<class ...Tys>
+    using concat_t = typename concat<Tys...>::type;
+
+    template<class... As> struct zip {
+        template<class A, std::size_t I> using a_a_i = typename A::template element<I>::type;
+        template<std::size_t I> using at_index = info<a_a_i<As, I>...>;
+        template<std::size_t ...Is> struct helper {
+            using type = info<at_index<Is>...>;
+        };
+        using type = array_to_pack_t < generate_indices_v < 0, std::min({ As::size... }) > , helper > ::type;
+    };
+
+    /**
+     * Zip all forward_types in the info's ...As
+     * @tparam ...As info forward_types
+     */
+    template<class ...As> using zip_t = typename zip<As...>::type;
+
+    template<class...> struct cartesian_helper;
+    template<template<class...> class T, class ...As>
+    struct cartesian_helper<T<As...> > {
+        using type = T<As...>;
+    };
+
+    template<template<class...> class T, class...As>
+    struct cartesian_helper<T<T<>>, As... > {
+        using type = T<>;
+    };
+
+    template<template<class...> class T, class...As, class ...Cs>
+    struct cartesian_helper<T<As...>, T<>, Cs... > {
+        using type = T<>;
+    };
+
+    template<template<class...> class T, class ...As, class B, class ...Cs>
+    struct cartesian_helper<T<As...>, T<B>, Cs...> {
+        using type1 = T<concat_t<As, T<B>>...>;
+        using type = typename cartesian_helper<type1, Cs...>::type;
+    };
+
+    template<template<class...> class T, class ...As, class B, class ...Bs, class ...Cs>
+    struct cartesian_helper<T<As...>, T<B, Bs...>, Cs...> {
+        using type1 = T<concat_t<As, T<B>>...>;
+        using type2 = typename cartesian_helper<T<As...>, T<Bs...> >::type;
+        using type3 = concat_t<type1, type2>;
+        using type = typename cartesian_helper<type3, Cs...>::type;
+    };
+
+    template<class...> struct cartesian;
+    template<template<class...> class T, class...As, class... Tys>
+    struct cartesian<T<As...>, Tys...> {
+        using type = typename cartesian_helper<T<T<As>...>, Tys...>::type;
+    };
+
+    /**
+     * Get the cartesian product of the template types
+     * of all templated types ...Tys.
+     * @tparam ...Tys templated types
+     */
+    template<class ...Tys>
+    using cartesian_t = typename cartesian<Tys...>::type;
+
     template<template<class...> class T, class Ty>
     struct transform { using type = T<Ty>; };
 
     template<template<class...> class T, class ...As>
-    struct transform<T, info<As...>> { using type = info<typename transform<T, As>::type...>; };
+    struct transform<T, info<As...>> { using type = info<T<As>...>; };
 
     template<template<class...> class T, class Ty>
     using transform_t = typename transform<T, Ty>::type;
 
+    template<auto Filter, template<class...> class T, class Ty>
+    struct conditional_transform { using type = Ty; };
+
+    template<auto Filter, template<class...> class T, class Ty>
+        requires (filter_object{ Filter }.template call<0, Ty>())
+    struct conditional_transform<Filter, T, Ty> { using type = T<Ty>; };
+
+    template<auto Filter, template<class...> class T, class ...As>
+    struct conditional_transform<Filter, T, info<As...>> {
+        using type = info<typename conditional_transform<Filter, T, As>::type...>;
+    };
+
+    template<auto Filter, template<class...> class T, class Ty>
+    using conditional_transform_t = typename conditional_transform<Filter, T, Ty>::type;
+
     /**
      * Grab a certain member in a transform operation.
-     * Most member types in the standard are here.
+     * Most member forward_types in the standard are here.
      */
     namespace grab {
         template<class Ty> using type = typename Ty::type;
         template<class Ty> using value = value_t<Ty::value>;
+        template<class Ty> using size = value_t<Ty::size>;
         template<class Ty> using off_type = typename Ty::off_type;
         template<class Ty> using state_type = typename Ty::state_type;
         template<class Ty> using int_type = typename Ty::int_type;
@@ -1885,7 +2080,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     constexpr std::size_t struct_size_v = struct_size<Ty>::value;
 
     /**
-     * Find member types of a struct, uses a macro to define
+     * Find member forward_types of a struct, uses a macro to define
      * overloads up to 99 members using structured bindings.
      */
     template<aggregate Ty, std::size_t N>
@@ -2018,7 +2213,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     KAIXO_UNIQUE_99(KAIXO_STRUCT_MEMBERS_M, 99);
 
     /**
-     * Find the member types of a struct.
+     * Find the member forward_types of a struct.
      * @tparam Ty struct
      */
     template<aggregate Ty>
@@ -2301,6 +2496,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     struct _s_aggregate {};
     struct _s_memfun {};
     struct _s_value {};
+    struct _s_templated {};
 
     template<class ...Tys>
     struct specialized_info {
@@ -2308,7 +2504,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     };
 
     /**
-     * Specialization for callable types, to also
+     * Specialization for callable forward_types, to also
      * contain function info.
      */
     template<class ...Tys>
@@ -2370,7 +2566,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     };
 
     /**
-     * Specialization for integral types, to
+     * Specialization for integral forward_types, to
      * add the make_signed/make_unsigned type traits.
      * Also inherits from std::numeric_limits<Ty>
      */
@@ -2394,7 +2590,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     };
 
     /**
-     * Specialization for enum types, contains underlying
+     * Specialization for enum forward_types, contains underlying
      * type, and enum names.
      */
     template<class ...Tys>
@@ -2444,7 +2640,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
 
     /**
      * Specialization for structs, contains information on
-     * members, like offset, types, and if 'register' macro was
+     * members, like offset, forward_types, and if 'register' macro was
      * used, also member names and pointers. Also contains
      * non-constexpr member pointers, made using std::bit_cast
      * and the calculated offset of each member.
@@ -2471,12 +2667,20 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
         template<std::size_t I> constexpr static auto value = element_t<I, value_t<Vs>...>::value;
     };
 
-    template<class ...Tys>
+    template<template<class...> class ...Tys>
+    struct specialized_info<templated_t<Tys>...> {
+        using _selected_specialization = _s_templated;
+
+        template<class ...Args>
+        using instantiate = info<instantiate_t<Tys, Args...>...>;
+    };
+
+    template<class ...T>
     struct info_base;
 
     /**
-     * Base for a pack of types.
-     * @tparam ...Tys types
+     * Base for a pack of forward_types.
+     * @tparam ...Tys forward_types
      */
     template<class ...Tys> requires (sizeof...(Tys) > 1)
         struct info_base<Tys...> : specialized_info<Tys...> {
@@ -2513,12 +2717,13 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
         template<auto Filter> constexpr static auto indices_filter = indices_filter_v<Filter, Tys...>;
 
         template<class Ty> struct _element_is_info { using type = info<Ty>; };
-        template<class Ty> struct _element_is_info<info<Ty>> { using type = info<Ty>; };
+        template<class ...Tys> struct _element_is_info<info<Tys...>> { using type = info<Tys...>; };
 
         template<std::size_t I> using element = typename _element_is_info<element_t<I, Tys...>>::type;
         template<std::size_t I> using take = take_t<I, info>;
         template<std::size_t I> using last = drop_t<size - I, info>;
         template<std::size_t I> using drop = drop_t<I, info>;
+        template<std::size_t I> using drop_last = drop_last_t<I, info>;
         template<std::size_t I> using erase = erase_t<I, info>;
 
         template<std::size_t I, class T> using insert = insert_t<I, T, info>;
@@ -2537,6 +2742,8 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
 
         using unique = unique_t<info>;
         using reverse = reverse_t<info>;
+        using uninstantiate = info<uninstantiate_t<Tys>...>;
+        using tparams = tparams_t<Tys...>;
 
         template<template<class...> class T> using transform = transform_t<T, info>;
         template<template<class...> class T> using as = T<Tys...>;
@@ -2544,6 +2751,12 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
         template<auto Sorter> using sort = sort_types_t<Sorter, info>;
         constexpr static auto for_each = []<class Ty>(Ty && lambda) {
             return lambda.operator() < Tys... > ();
+        };
+
+        template<auto Filter>
+        struct iff {
+            template<template<class...> class T>
+            using transform = conditional_transform_t<Filter, T, info>;
         };
 
         using is_void = info<value_t<std::is_void_v<Tys>>...>;
@@ -2702,6 +2915,13 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     using info_v = info<value_t<Vs>...>;
 
     /**
+     * Info object of templated forward_types.
+     * @tparam ...Tys templated forward_types
+     */
+    template<template<class...> class ...Tys>
+    using info_t = info<templated_t<Tys>...>;
+
+    /**
      * Template parameters of Ty to info.
      * @tparam Ty templated type
      */
@@ -2715,43 +2935,55 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
      *                                                                                                         *
      *                                                                                                         *
      *                                                                                                         *
-     *                                     template pack value helper.                                         *
+     *                                             tuple wrapper.                                              *
      *                                                                                                         *
      *                                                                                                         *
      *                                                                                                         *
      * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-     /**
-      * Helper for dealing with the actual values in a template pack.
-      * Used like this:
-      *
-      * template<class ...Tys>
-      * void my_fun(Tys&&...tys) {
-      *     template_pack<Tys...> vals{ tys... };
-      *     vals.get<0>(); // etc...
-      *
-      * @tparam ...Args types
-      */
-    template<class ...Args> struct template_pack : std::tuple<Args&&...>, info<Args...> {
+    constexpr auto _0 = value_t<0ull>{};
+    constexpr auto _1 = value_t<1ull>{};
+    constexpr auto _2 = value_t<2ull>{};
+    constexpr auto _3 = value_t<3ull>{};
+    constexpr auto _4 = value_t<4ull>{};
+    constexpr auto _5 = value_t<5ull>{};
+    constexpr auto _6 = value_t<6ull>{};
+    constexpr auto _7 = value_t<7ull>{};
+    constexpr auto _8 = value_t<8ull>{};
+    constexpr auto _9 = value_t<9ull>{};
+
+    /**
+     * Wrapper for tuple with helpful member functions.
+     * @tparam ...Args types
+     */
+    template<class ...Args> struct tuple : std::tuple<Args...>, info<Args...> {
         using types = info<Args...>;
+        using forward_types = types::
+            template iff<not is_reference>::template transform<add_lvalue_reference_t>::
+            template iff<is_rvalue_reference>::template transform<remove_reference_t>;
 
-        constexpr template_pack(Args&...args)
-            : std::tuple<Args&&...>{ std::forward<Args>(args)... } {}
-
-        /**
-         * Get the template pack as a tuple.
-         */
-        template<class Self>
-        constexpr std::tuple<Args&&...> as_tuple(this Self&& self) { return std::forward<Self>(self); }
+        template<class ...Tys>
+        constexpr tuple(Tys&&...args)
+            : std::tuple<Args...>{ std::forward<Tys>(args)... } {}
 
         /**
          * Get I'th element in pack.
          * @tparam I index
          */
         template<std::size_t I, class Self, class Type
-            = typename types::template element<I>::type>
+            = typename forward_types::template element<I>::type>
         constexpr auto get(this Self&& self) -> Type&& {
             return std::forward<Type>(std::get<I>(std::forward<Self>(self)));
+        }
+
+        /**
+         * Get I'th element in pack.
+         * @tparam I index
+         */
+        template<class I, class Self, class Type
+            = typename forward_types::template element<I::value>::type>
+        constexpr auto operator[](this Self&& self, I) -> Type&& {
+            return std::forward<Type>(std::get<I::value>(std::forward<Self>(self)));
         }
 
         /**
@@ -2759,10 +2991,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * @tparam I amount of elements to take
          */
         template<std::size_t I, class Self, class Type
-            = typename types::template take<I>::template as<kaixo::template_pack>>
+            = typename types::template take<I>::template as<kaixo::tuple>>
             constexpr auto take(this Self&& self) -> Type {
             return sequence<I>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -2771,7 +3003,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * @tparam I amount of elements
          */
         template<std::size_t I, class Self, class Type
-            = typename types::template take<I>::template as<kaixo::template_pack>>
+            = typename types::template drop<types::size - I>::template as<kaixo::tuple>>
             constexpr auto last(this Self&& self) -> Type {
             return std::forward<Self>(self).drop<types::size - I>();
         }
@@ -2781,11 +3013,21 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * @tparam I amount of elements
          */
         template<std::size_t I, class Self, class Type
-            = typename types::template drop<I>::template as<kaixo::template_pack>>
+            = typename types::template drop<I>::template as<kaixo::tuple>>
             constexpr auto drop(this Self&& self) -> Type {
             return sequence<I, types::size>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
+        }
+
+        /**
+         * Drop the first I elements from pack.
+         * @tparam I amount of elements
+         */
+        template<std::size_t I, class Self, class Type
+            = typename types::template drop_last<I>::template as<kaixo::tuple>>
+            constexpr auto drop_last(this Self&& self) -> Type {
+            return std::forward<Self>(self).take<types::size - I>();
         }
 
         /**
@@ -2793,10 +3035,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * @tparam I index of element
          */
         template<std::size_t I, class Self, class Type
-            = typename types::template erase<I>::template as<kaixo::template_pack>>
+            = typename types::template erase<I>::template as<kaixo::tuple>>
             constexpr auto erase(this Self&& self) -> Type {
             return iterate<generate_indices_v<0, types::size, I>>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -2808,13 +3050,31 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * @tparam I index to insert at
          */
         template<std::size_t I, class ...Tys, class Self, class Type
-            = typename types::template insert<I, info<Tys...>>::template as<kaixo::template_pack>>
-            constexpr Type insert(this Self&& self, Tys&& ...args) {
+            = typename types::template insert<I, info<Tys&&...>>::template as<kaixo::tuple>>
+            requires (!specialization<Tys, kaixo::tuple> && ...)
+        constexpr Type insert(this Self&& self, Tys&& ...args) {
             return sequence<I>([&]<std::size_t ...Is>{
                 return sequence<I, types::size>([&]<std::size_t ...Ns>{
-                    return Type{ std::get<Is>(self)..., args..., std::get<Ns>(self)... };
+                    return Type{ self.get<Is>()..., std::forward<Tys>(args)..., self.get<Ns>()... };
                 });
             });
+        }
+
+        /**
+         * Insert template pack at index I in ...Args.
+         * Be careful!! This class doesn't take ownership of anything.
+         * Make sure temporaries and references remain valid while using this!!
+         * @param args template pack to insert
+         * @tparam I index to insert at
+         */
+        template<std::size_t I, class ...Tys, class Self, class Type
+            = typename types::template insert<I, info<Tys...>>::template as<kaixo::tuple>>
+            constexpr Type insert(this Self&& self, const tuple<Tys...>& args) {
+            return[&]<std::size_t ...Is, std::size_t ...Ns, std::size_t ...Qs>
+                (std::index_sequence<Is...>, std::index_sequence<Ns...>, std::index_sequence<Qs...>) {
+                return Type{ self.get<Is>()..., args.get<Qs>()..., self.get<I + Ns>()... };
+            }(std::make_index_sequence<I>{}, std::make_index_sequence<types::size - I>{},
+                std::index_sequence_for<Tys...>{});
         }
 
         /**
@@ -2825,7 +3085,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * @tparam I index to swap with
          */
         template<std::size_t I, class Ty, class Self, class Type
-            = typename types::template swap<I, Ty>::template as<kaixo::template_pack>>
+            = typename types::template swap<I, Ty>::template as<kaixo::tuple>>
             constexpr Type swap(this Self&& self, Ty&& arg) {
             return std::forward<Self>(self).erase<I>().template insert<I>(std::forward<Ty>(arg));
         }
@@ -2836,10 +3096,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * @tparam B end index
          */
         template<std::size_t A, std::size_t B, class Self, class Type
-            = typename types::template sub<A, B>::template as<kaixo::template_pack>>
+            = typename types::template sub<A, B>::template as<kaixo::tuple>>
             constexpr auto sub(this Self&& self) -> Type {
             return iterate<generate_indices_v<A, B>>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -2849,10 +3109,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<class R, class Self,
             auto Indices = types::decay::template indices_except<R>,
-            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::tuple>>
             constexpr auto remove(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -2861,10 +3121,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * @tparam R type to remove, or info<Types...> for multiple
          */
         template<auto Indices, class Self,
-            class Type = typename remove_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename remove_indices_t<Indices, types>::template as<kaixo::tuple>>
             constexpr auto remove_indices(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -2874,10 +3134,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<class R, class Self,
             auto Indices = types::template indices_except<R>,
-            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::tuple>>
             constexpr auto remove_raw(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -2887,10 +3147,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<class R, class Self,
             auto Indices = types::decay::template indices<R>,
-            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::tuple>>
             constexpr auto keep(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -2899,10 +3159,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * @tparam R type to remove, or info<Types...> for multiple
          */
         template<auto Indices, class Self,
-            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::tuple>>
             constexpr auto keep_indices(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -2912,10 +3172,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<class R, class Self,
             auto Indices = types::template indices<R>,
-            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::tuple>>
             constexpr auto keep_raw(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -2926,24 +3186,54 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * @param ...args arguments to append
          */
         template<class ...Tys, class Self>
-        constexpr auto append(this Self&& self, Tys&&...args)
-            -> template_pack<Args..., Tys...> {
+            requires (!specialization<Tys, kaixo::tuple> && ...)
+        constexpr auto append(this Self&& self, Tys&&...args) -> tuple<Args..., Tys...> {
             return sequence<types::size>([&]<std::size_t ...Is> {
-                return template_pack<Args..., Tys...>{ std::get<Is>(self)..., args... };
+                return tuple<Args..., Tys...>{ self.get<Is>()..., std::forward<Tys>(args)... };
             });
         }
 
         /**
-         * Append ...Tys to ...Args.
+         * Append template_pack to ...Args.
          * Be careful!! This class doesn't take ownership of anything.
          * Make sure temporaries and references remain valid while using this!!
-         * @param ...args arguments to append
+         * @param args template pack to append
          */
         template<class ...Tys, class Self>
-        constexpr auto prepend(this Self&& self, Tys&&...args)
-            -> template_pack<Tys..., Args...> {
+        constexpr auto append(this Self&& self, const tuple<Tys...>& args) -> tuple<Args..., Tys...> {
             return sequence<types::size>([&]<std::size_t ...Is> {
-                return template_pack<Tys..., Args...>{ args..., std::get<Is>(self)... };
+                return sequence<sizeof...(Tys)>([&]<std::size_t ...Ns> {
+                    return tuple<Args..., Tys...>{ self.get<Is>()..., args.get<Ns>()... };
+                });
+            });
+        }
+
+        /**
+         * Prepend ...Tys to ...Args.
+         * Be careful!! This class doesn't take ownership of anything.
+         * Make sure temporaries and references remain valid while using this!!
+         * @param ...args arguments to prepend
+         */
+        template<class ...Tys, class Self>
+            requires (!specialization<Tys, kaixo::tuple> && ...)
+        constexpr auto prepend(this Self&& self, Tys&&...args) -> tuple<Tys..., Args...> {
+            return sequence<types::size>([&]<std::size_t ...Is> {
+                return tuple<Tys..., Args...>{ std::forward<Tys>(args)..., self.get<Is>()... };
+            });
+        }
+
+        /**
+         * Prepend template_pack to ...Args.
+         * Be careful!! This class doesn't take ownership of anything.
+         * Make sure temporaries and references remain valid while using this!!
+         * @param args template pack to prepend
+         */
+        template<class ...Tys, class Self>
+        constexpr auto prepend(this Self&& self, const tuple<Tys...>& args) -> tuple<Tys..., Args...> {
+            return sequence<types::size>([&]<std::size_t ...Is> {
+                return sequence<sizeof...(Tys)>([&]<std::size_t ...Ns> {
+                    return tuple<Tys..., Args...>{ args.get<Ns>()..., self.get<Is>()... };
+                });
             });
         }
 
@@ -2952,10 +3242,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<class Self,
             class Type = typename keep_indices_t<first_indices_v<typename types::decay>,
-            types>::template as<kaixo::template_pack>>
+            types>::template as<kaixo::tuple>>
             constexpr auto unique(this Self&& self) -> Type {
             return iterate<first_indices_v<typename types::decay>>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -2963,10 +3253,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          * Reverse the pack.
          */
         template<class Self,
-            class Type = typename types::reverse::template as<kaixo::template_pack>>
+            class Type = typename types::reverse::template as<kaixo::tuple>>
             constexpr auto reverse(this Self&& self) -> Type {
             return sequence<0, types::size>([&]<std::size_t ...Is>{
-                return Type{ std::get<types::size - Is - 1>(self)... };
+                return Type{ self.get<types::size - Is - 1>()... };
             });
         }
 
@@ -2976,10 +3266,10 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
          */
         template<auto Filter, class Self,
             auto Indices = types::decay::template indices_filter<Filter>,
-            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::template_pack>>
+            class Type = typename keep_indices_t<Indices, types>::template as<kaixo::tuple>>
             constexpr auto filter(this Self&& self) -> Type {
             return iterate<Indices>([&]<std::size_t ...Is>{
-                return Type{ std::get<Is>(self)... };
+                return Type{ self.get<Is>()... };
             });
         }
 
@@ -3005,6 +3295,32 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
                 return functor(self.template get<Is>()...);
             });
         }
+    };
+
+    template<class ...Tys>
+    tuple(Tys&&...)->tuple<decay_t<Tys>...>;
+
+    /**
+     * Helper for dealing with the actual values in a template pack.
+     * Used like this:
+     *
+     * template<class ...Tys>
+     * void my_fun(Tys&&...tys) {
+     *     template_pack<Tys...> vals{ tys... };
+     *     vals.get<0>(); // etc...
+     *
+     * @tparam ...Args types
+     */
+    template<class ...Args>
+    struct template_pack : tuple<Args&&...> {
+
+        constexpr template_pack(Args&...args) : tuple<Args&&...>{ std::forward<Args>(args)... } {}
+
+        /**
+         * Get the template pack as a tuple.
+         */
+        template<class Self>
+        constexpr tuple<Args&&...> as_tuple(this Self&& self) { return std::forward<Self>(self); }
     };
 
     /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
