@@ -1,4 +1,4 @@
-﻿#include "type_utils.hpp"
+﻿#include "include/type_utils.hpp"
 #include <vector>
 
 using namespace kaixo;
@@ -51,7 +51,7 @@ int main() {
 
     // Sort types
     static_assert(same_as<
-        info<uint16_t, uint64_t, uint8_t, uint32_t>::sort<type_sorters::size_desc>,
+        info<uint16_t, uint64_t, uint8_t, uint32_t>::sort<type_sorters::rsize>,
         info<uint64_t, uint32_t, uint16_t, uint8_t>
     >);
 
