@@ -2,6 +2,9 @@
 #include "helpers.hpp"
 #include "functions.hpp"
 
+/**
+ * Helper for generating a custom switch statement.
+ */
 namespace kaixo {
 
 #define   KAIXO_SC1(sc, a)         sc (    0ull + a) 

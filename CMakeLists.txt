@@ -8,6 +8,7 @@ add_library(type_utils STATIC
   "${type_utils_SOURCE_DIR}/include/impl/type_traits.hpp"
   "${type_utils_SOURCE_DIR}/include/impl/qualifiers.hpp"
   "${type_utils_SOURCE_DIR}/include/impl/functions.hpp"
+  "${type_utils_SOURCE_DIR}/include/impl/sequence.hpp"
   "${type_utils_SOURCE_DIR}/include/impl/concepts.hpp"
   "${type_utils_SOURCE_DIR}/include/impl/helpers.hpp"
   "${type_utils_SOURCE_DIR}/include/impl/members.hpp"

@@ -1,13 +1,13 @@
 #pragma once
 #include "concepts.hpp"
 
+/**
+ * All standard type traits wrapped in an object, allows for
+ * simple boolean operations and partial application.
+ * Even allows for complex concept constraints like:
+ * template<require<is_integral || is_floating_point> Ty>
+ */
 namespace kaixo {
-    /**
-     * All standard type traits wrapped in an object, allows for
-     * simple boolean operations and partial application.
-     * Even allows for complex concept constraints like:
-     * template<require<is_integral || is_floating_point> Ty>
-     */
     inline namespace type_traits {
         /**
          * Concept to match a type_trait.

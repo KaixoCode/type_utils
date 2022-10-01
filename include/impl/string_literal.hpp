@@ -2,6 +2,9 @@
 #include <cstddef>
 #include <string_view>
 
+/**
+ * Class that allows a string literal as a template parameter.
+ */
 namespace kaixo {
     template<std::size_t N, class CharType = char>
     struct string_literal {

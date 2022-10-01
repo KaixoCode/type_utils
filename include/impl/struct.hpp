@@ -1,6 +1,9 @@
 #pragma once
 #include "info.hpp"
 
+/**
+ * Helpers for getting information about a struct.
+ */
 namespace kaixo {
     template<class Ty, class ...Args>
     concept struct_constructible_with = requires (Args...args) {

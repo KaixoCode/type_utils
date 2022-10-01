@@ -1,6 +1,9 @@
 #pragma once
 #include "helpers.hpp"
 
+/**
+ * All standard traits as concepts.
+ */
 namespace kaixo {
     inline namespace type_concepts {
         template<class Ty> concept void_type = std::is_void_v<Ty>;

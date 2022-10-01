@@ -36,6 +36,18 @@ namespace kaixo {
     template<template<class...> class T, class ...As>
     using partial = partial_first<T, As...>;
 
+    /**
+     * Partially specialize T by setting the first
+     * template parameters to ...As
+     * @tparam T templated type
+     * @tparam ...As types to
+     */
+    template<template<class...> class T, class ...As>
+    struct partial_last {
+        template<class ...Bs>
+        using type = T<Bs..., As...>;
+    };
+
     template<class ...Tys>
     struct tparams {
         using type = info<typename tparams<Tys>::type...>;
@@ -52,28 +64,6 @@ namespace kaixo {
      */
     template<class ...Tys>
     using tparams_t = typename tparams<Tys...>::type;
-
-    /**
-     * Partially specialize T by setting the first
-     * template parameters to ...As
-     * @tparam T templated type
-     * @tparam ...As types to
-     */
-    template<template<class...> class T, class ...As>
-    struct partial_last {
-        template<class ...Bs>
-        using type = T<Bs..., As...>;
-    };
-
-    /**
-     * Wrapper for a templated type.
-     * @tparam T templated type
-     */
-    template<template<class...> class T>
-    struct templated_t {
-        template<class ...Args>
-        using type = T<Args...>;
-    };
 
     template<class Ty> struct uninstantiate { using type = Ty; };
     template<template<class...> class T, class ...Tys>

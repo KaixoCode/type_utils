@@ -1,8 +1,10 @@
 #pragma once
 #include "helpers.hpp"
 
+/**
+ * Modify the qualifiers of a type.
+ */
 namespace kaixo {
-
     template<class To, class From>
     struct add_ref {
         using _lvalue = std::conditional_t<std::is_lvalue_reference_v<From>, std::add_lvalue_reference_t<To>, To>;
@@ -249,5 +251,4 @@ namespace kaixo {
 
     template<class Ty>
     using add_pointer_t = typename add_pointer<Ty>::type;
-
 }

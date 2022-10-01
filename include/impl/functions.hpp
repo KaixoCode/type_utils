@@ -1,6 +1,9 @@
 #pragma once 
 #include "helpers.hpp"
 
+/**
+ * Information regarding function, member functions, and function pointers.
+ */
 namespace kaixo {
     constexpr auto unit = []<class Ty>(Ty && i) -> Ty&& { return std::forward<Ty>(i); };
     template<class To>
@@ -24,6 +27,10 @@ KAIXO_MEMBER_CALL_V(MAC,     &&, NOEXCEPT)
 KAIXO_MEMBER_CALL_NOEXCEPT(MAC, NO_ARG  ) \
 KAIXO_MEMBER_CALL_NOEXCEPT(MAC, noexcept) 
 
+    /**
+     * Check if a type has a call operator.
+     * @tparam Ty type to check
+     */
     template<class Ty> concept is_functor = requires(decltype(&Ty::operator()) a) { a; };
 
     template<class> struct function_info_impl;

@@ -1,6 +1,9 @@
 #pragma once
 #include "info.hpp"
 
+/**
+ * Tuple manipulation helpers.
+ */
 namespace kaixo {
 
     template<class Ty, class Tuple>

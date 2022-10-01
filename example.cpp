@@ -19,6 +19,7 @@ struct my_type {};
 
 int main() {
 
+
     // Simple type traits
     static_assert(info<int>::is_integral::value); 
     static_assert(info<double[3][5]>::extent<1>::value == 5);
