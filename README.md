@@ -1,6 +1,6 @@
 # Type Utils
 
-Single header type utilities library for things like template packs, structs, functions, enums. 
+Type utilities library for things like template packs, structs, functions, enums. 
 
 ```cpp
 using namespace kaixo;
