@@ -70,7 +70,7 @@ constexpr static auto handle(Args&& ...cases) {                  \
     template<auto transform = unit>
     constexpr auto generate_switch = []<class ...Functors>(Functors&& ...cases) {
         constexpr auto p2 = closest_larger_power2(sizeof...(Functors));
-        return tuple_switch_impl<p2>::template handle<transform>(std::forward<Functors>(cases)...);
+        return cases_switch_impl<p2>::template handle<transform>(std::forward<Functors>(cases)...);
     };
 
     /**
