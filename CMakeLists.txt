@@ -3,18 +3,17 @@ project (type_utils)
 
 set (CMAKE_CXX_STANDARD 23)
 
-set(type_utils_includes
-  ${type_utils_SOURCE_DIR}/include/
-)
-
 option(BUILD_TYPE_UTILS_EXAMPLE "Build the type utils example project." false)
 
+if (TARGET type_utils)
+else()
 file(GLOB_RECURSE SOURCE
   "${type_utils_SOURCE_DIR}/include/*.hpp"
 )
 
 add_library(type_utils ${SOURCE})
 set_target_properties(type_utils PROPERTIES LINKER_LANGUAGE CXX)
+endif()
 
 if (${BUILD_TYPE_UTILS_EXAMPLE})
 if (TARGET type_utils_example)
@@ -24,7 +23,7 @@ add_executable(type_utils_example
 )
 
 target_include_directories(type_utils_example PRIVATE
-  ${type_utils_includes}
+  ${type_utils_SOURCE_DIR}/include/
 )
 endif()
 endif()
