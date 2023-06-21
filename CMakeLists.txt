@@ -9,6 +9,13 @@ set(type_utils_includes
 
 option(BUILD_TYPE_UTILS_EXAMPLE "Build the type utils example project." false)
 
+file(GLOB_RECURSE SOURCE
+  "${type_utils_SOURCE_DIR}/include/*.hpp"
+)
+
+add_library(type_utils ${SOURCE})
+set_target_properties(type_utils PROPERTIES LINKER_LANGUAGE CXX)
+
 if (${BUILD_TYPE_UTILS_EXAMPLE})
 if (TARGET type_utils_example)
 else()
