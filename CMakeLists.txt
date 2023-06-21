@@ -7,6 +7,8 @@ set(type_utils_includes
   ${type_utils_SOURCE_DIR}/include/
 )
 
+if (TARGET type_utils_example)
+else()
 add_executable(type_utils_example
   "${type_utils_SOURCE_DIR}/example.cpp"
 )
@@ -14,3 +16,4 @@ add_executable(type_utils_example
 target_include_directories(type_utils_example PRIVATE
   ${type_utils_includes}
 )
+endif()
