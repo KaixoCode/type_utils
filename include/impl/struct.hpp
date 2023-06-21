@@ -24,7 +24,7 @@ namespace kaixo {
          * sizeof(Ty) parameters, and trying 1 less each time until
          * it is constructible.
          */
-        constexpr static std::size_t value = reverse_sequence<0, sizeof_v<Ty> +1>([]<std::size_t ...Ns>{
+        constexpr static std::size_t value = reverse_sequence<0, sizeof_v<Ty> + 1>([]<std::size_t ...Ns>{
             using convertible_type = not_convertible_to<Ty>;
 
             std::size_t res = 0;

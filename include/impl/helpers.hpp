@@ -55,7 +55,9 @@ namespace kaixo {
      * Dud type, used in places as a placeholder, or
      * when nothing else should match.
      */
-    struct dud {};
+    struct dud {
+        constexpr bool operator==(const dud&) const { return true; }
+    };
 
     /**
      * Overloaded Functor.

@@ -37,7 +37,7 @@ namespace kaixo {
     using partial = partial_first<T, As...>;
 
     /**
-     * Partially specialize T by setting the first
+     * Partially specialize T by setting the last
      * template parameters to ...As
      * @tparam T templated type
      * @tparam ...As types to
@@ -674,11 +674,13 @@ namespace kaixo {
     template<class L, std::size_t I, class Ty>// Value
     concept _call_type5 = requires(L l) { { l == Ty::value } -> convertible_to<bool>; };
 
+    template<class L, std::size_t I, class Ty>// Value
+    concept _call_type6 = std::same_as<L, bool>;
+
     template<class L>
     struct wrap_filter_object { using type = filter_object_wrapper<L>; };
     template<class L> requires is_type_trait<L>
     struct wrap_filter_object<L> { using type = L; };
-
 
     /**
      * Filter object with operator overloads for several cases
@@ -688,7 +690,8 @@ namespace kaixo {
     template<class L>
     struct filter_object : wrap_filter_object<L>::type {
         template<std::size_t I, class Ty> consteval bool call() {
-            if constexpr (_call_type0<L, I, Ty>) return this->value.template operator() < Ty > ();
+            if constexpr (_call_type6<L, I, Ty>) return this->value;
+            else if constexpr (_call_type0<L, I, Ty>) return this->value.template operator() < Ty > ();
             else if constexpr (_call_type1<L, I, Ty>) return this->value.template operator() < I, Ty > ();
             else if constexpr (_call_type2<L, I, Ty>) return this->value.template operator() < I > ();
             else if constexpr (_call_type3<L, I, Ty>) return true;
@@ -845,7 +848,7 @@ namespace kaixo {
         constexpr auto ralignment = []<class A, class B>{ return alignof_v<A> > alignof_v<B>; };
     }
 
-    template<class...>struct concat;
+    template<class...>struct concat { using type = info<>; };
     template<template<class...> class A, class ...As>
     struct concat<A<As...>> { using type = A<As...>; };
     template<template<class...> class A, template<class...> class B, class ...As, class ...Bs, class ...Rest>
@@ -928,6 +931,11 @@ namespace kaixo {
     template<template<class...> class T, class ...As>
     struct transform<T, info<As...>> { using type = info<T<As>...>; };
 
+    /**
+     * Transform Ty using T.
+     * @tparam T transform
+     * @tparam Ty type
+     */
     template<template<class...> class T, class Ty>
     using transform_t = typename transform<T, Ty>::type;
 
@@ -944,7 +952,7 @@ namespace kaixo {
     };
 
     /**
-     * Conditionally transform Ty using T if matched Filter
+     * Conditionally transform Ty using T if matched Filter.
      * @tparam Filter filter
      * @tparam T transform
      * @tparam Ty type
