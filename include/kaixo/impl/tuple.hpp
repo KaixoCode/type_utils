@@ -7,14 +7,17 @@
 namespace kaixo {
 
     template<class Ty, class Tuple>
-    concept is_tuple_modifier = std::invocable<decay_t<Ty>, Tuple>;
+    concept is_tuple_modifier = std::invocable<decay_t<Ty>, Tuple> && requires () {
+        typename decay_t<Ty>::tuple_modifier;
+    };
 
     template<std::size_t I> struct get_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys>
         constexpr decltype(auto) operator()(const std::tuple<Tys...>& tuple) const {
             using forward_types = info<Tys...>::
-                template iff<not is_reference>::template transform<add_lvalue_reference_t>::
-                template iff<is_rvalue_reference>::template transform<remove_reference_t>;
+                template when<not is_reference>::template transform<add_lvalue_reference_t>::
+                template when<is_rvalue_reference>::template transform<remove_reference_t>;
             using type = std::conditional_t<reference<typename info<Tys...>::template element<I>::type>,
                 typename forward_types::template element<I>::type,
                 const typename info<Tys...>::template element<I>::type&>;
@@ -24,12 +27,13 @@ namespace kaixo {
 
     template<std::size_t I> constexpr auto get_v = get_v_impl<I>{};
 
-    template<specialization<std::tuple> T, is_tuple_modifier<T> Ty>
+    template<class T, is_tuple_modifier<T> Ty>
     constexpr decltype(auto) operator|(T&& tuple, Ty&& val) {
         return std::forward<Ty>(val)(std::forward<T>(tuple));
     }
 
     template<std::size_t I> struct take_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, class Type
             = typename info<Tys...>::template take<I>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -40,6 +44,7 @@ namespace kaixo {
     };
 
     template<std::size_t I> struct drop_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, class Type
             = typename info<Tys...>::template drop<I>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -53,6 +58,7 @@ namespace kaixo {
     template<std::size_t I> constexpr auto drop_v = drop_v_impl<I>{};
 
     template<std::size_t I> struct last_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, class Type
             = typename info<Tys...>::template drop<info<Tys...>::size - I>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -61,6 +67,7 @@ namespace kaixo {
     };
 
     template<std::size_t I> struct drop_last_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, class Type
             = typename info<Tys...>::template drop_last<I>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -69,6 +76,7 @@ namespace kaixo {
     };
 
     template<std::size_t I> struct erase_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, class Type
             = typename info<Tys...>::template erase<I>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -80,6 +88,7 @@ namespace kaixo {
 
     template<std::size_t I> struct insert_v_impl {
         template<class ...Args> struct result {
+            using tuple_modifier = int;
             std::tuple<Args&&...> _data{};
 
             template<class ...Tys, class Type
@@ -104,6 +113,7 @@ namespace kaixo {
 
     template<std::size_t I> struct swap_v_impl {
         template<class Ty> struct result {
+            using tuple_modifier = int;
             Ty&& _data;
             template<class ...Tys, class Type
                 = typename info<Tys...>::template swap<I, decay_t<Ty>>::template as<std::tuple>>
@@ -119,6 +129,7 @@ namespace kaixo {
     };
 
     template<std::size_t A, std::size_t B> struct sub_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, class Type
             = typename info<Tys...>::template sub<A, B>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -129,6 +140,7 @@ namespace kaixo {
     };
 
     template<class ...Args> struct remove_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, auto Indices = info<Tys...>::decay::template indices_except<info<Args...>>,
             class Type = typename keep_indices_t<Indices, info<Tys...>>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -155,6 +167,7 @@ namespace kaixo {
     //template<std::size_t ...Is> constexpr auto remove_indices_v = remove_indices_v_impl<Is...>{};
 
     template<class ...Args> struct remove_raw_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, auto Indices = info<Tys...>::decay::template indices_except<info<Args...>>,
             class Type = typename keep_indices_t<Indices, info<Tys...>>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -165,6 +178,7 @@ namespace kaixo {
     };
 
     template<class ...Args> struct keep_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, auto Indices = info<Tys...>::decay::template indices<info<Args...>>,
             class Type = typename keep_indices_t<Indices, info<Tys...>>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -175,6 +189,7 @@ namespace kaixo {
     };
 
     template<std::size_t ...Is> struct keep_indices_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, class Type = std::tuple<typename info<Tys...>
         ::template element<Is>::type...>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -183,6 +198,7 @@ namespace kaixo {
     };
 
     template<class ...Args> struct keep_raw_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, auto Indices = info<Tys...>::template indices<info<Args...>>,
             class Type = typename keep_indices_t<Indices, info<Tys...>>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -193,7 +209,9 @@ namespace kaixo {
     };
 
     struct append_v_impl {
+        using tuple_modifier = int;
         template<class ...Args> struct result {
+            using tuple_modifier = int;
             std::tuple<Args&&...> _data{};
 
             template<class ...Tys, class Type = typename info<Tys...>
@@ -215,6 +233,7 @@ namespace kaixo {
 
     struct prepend_v_impl {
         template<class ...Args> struct result {
+            using tuple_modifier = int;
             std::tuple<Args&&...> _data{};
 
             template<class ...Tys, class Type = typename info<Tys...>
@@ -235,6 +254,7 @@ namespace kaixo {
     };
 
     struct unique_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, class Type = typename keep_indices_t<
             first_indices_v<typename info<Tys...>::decay>, info<Tys...>>::template as<std::tuple>>
             constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
@@ -245,6 +265,7 @@ namespace kaixo {
     };
 
     struct reverse_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys, class Type = typename info<Tys...>::reverse::template as<std::tuple>>
         constexpr auto operator()(const std::tuple<Tys...>& tuple) const -> Type {
             return sequence<0, info<Tys...>::size>([&]<std::size_t ...Is>{
@@ -255,6 +276,7 @@ namespace kaixo {
     };
 
     template<auto Filter> struct filter_v_impl {
+        using tuple_modifier = int;
         template<class ...Tys>
         constexpr auto operator()(const std::tuple<Tys...>& tuple) const {
             return iterate<info<Tys...>::decay::template indices_filter<Filter>>([&]<std::size_t ...Is>{
@@ -265,6 +287,7 @@ namespace kaixo {
 
     struct call_v_impl {
         template<class Functor> struct result {
+            using tuple_modifier = int;
             Functor&& _functor;
             template<class ...Tys>
             constexpr decltype(auto) operator()(const std::tuple<Tys...>& tuple) const {

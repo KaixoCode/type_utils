@@ -5,6 +5,7 @@
 #include <array>
 #include <utility>
 #include <string_view>
+#include <cmath>
 #include <algorithm>
 #include <tuple>
 #include "string_literal.hpp"
@@ -37,14 +38,24 @@ namespace kaixo {
      * @param multiple multiple
      * @return next multiple of num
      */
-    template<class Ty>
-    constexpr Ty next_multiple(Ty num, Ty multiple) {
-        if (multiple == 0) return num;
+    template<class A, class B>
+    constexpr std::common_type_t<A, B> next_multiple(A num, B multiple) {
+        using Ty = std::common_type_t<A, B>;
+        if constexpr (std::is_floating_point_v<Ty>) {
+            if (multiple == 0) return num;
 
-        const auto remainder = num % multiple;
-        if (remainder == 0) return num;
+            const auto remainder = num - static_cast<std::int64_t>(num / multiple) * multiple;
+            if (remainder == 0) return num;
 
-        return num + multiple - remainder;
+            return static_cast<Ty>(num + multiple - remainder);
+        } else {
+            if (multiple == 0) return num;
+
+            const auto remainder = num % multiple;
+            if (remainder == 0) return num;
+
+            return static_cast<Ty>(num + multiple - remainder);
+        }
     }
     static_assert(next_multiple(2, 0) == 2);
     static_assert(next_multiple(2, 5) == 5);
