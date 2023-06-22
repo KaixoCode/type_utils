@@ -168,6 +168,22 @@ namespace kaixo {
     struct element {
         using type = typename decltype(element_impl<I>(indexer<Args...>{}))::type;
     };
+    
+    template<std::size_t I>
+    struct element<I> {
+        template<class ...Args>
+        struct impl {
+            using type = typename decltype(element_impl<I>(indexer<Args...>{}))::type;
+        };
+        
+        template<class ...Args>
+        struct impl<info<Args...>> {
+            using type = typename decltype(element_impl<I>(indexer<Args...>{}))::type;
+        };
+
+        template<class ...Args>
+        using type = impl<Args...>::type;
+    };
 
     template<std::size_t I, class ...Args>
     struct element<I, info<Args...>> {
