@@ -468,7 +468,7 @@ namespace kaixo {
     template<std::size_t N, class Ty>
     using drop_t = typename drop<N, Ty>::type;
 
-    template<std::size_t, class> struct drop_last;
+    template<std::size_t, class...> struct drop_last;
     template<std::size_t N, template<class...> class T, class ...As>
     struct drop_last<N, T<As...>> {
         template<class> struct helper;
@@ -477,6 +477,23 @@ namespace kaixo {
             using type = T<element_t<Is, As...>...>;
         };
         using type = typename helper<std::make_index_sequence<sizeof...(As) - N>>::type;
+    };    
+    
+    template<std::size_t N>
+    struct drop_last<N> {
+        template<class> struct impl;
+        template<template<class...> class T, class ...As>
+        struct impl<T<As...>> {
+            template<class> struct helper;
+            template<std::size_t ...Is>
+            struct helper<std::index_sequence<Is...>> {
+                using type = T<element_t<Is, As...>...>;
+            };
+            using type = typename helper<std::make_index_sequence<sizeof...(As) - N>>::type;
+        };
+
+        template<class Ty>
+        using type = impl<Ty>::type;
     };
 
     /**
