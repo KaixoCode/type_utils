@@ -78,45 +78,67 @@ namespace kaixo {
     template<class Ty>
     using uninstantiate_t = typename uninstantiate<Ty>::type;
 
+    template<class, class...> struct instantiate;
+
     template<template<class...> class T, class ...Tys>
-    struct instantiate {
+    struct instantiate<info<Tys...>, templated_t<T>> {
         using type = T<Tys...>;
     };
-    template<template<class...> class T, class ...Tys>
-    struct instantiate<T, info<Tys...>> {
-        using type = T<Tys...>;
+
+    template<class T>
+    struct instantiate<T> {
+        template<class Ty>
+        using type = instantiate<T, Ty>::type;
     };
 
     /**
      * Specialize a templated type.
+     * @tparam T pack of types to instantiate with
      * @tparam Ty templated type
      */
-    template<template<class...> class T, class ...Tys>
-    using instantiate_t = typename instantiate<T, Tys...>::type;
+    template<class T, class Ty>
+    using instantiate_t = typename instantiate<T, Ty>::type;
 
-    template<class T, class ...Tys> struct reinstantiate;
+    template<class, class...> struct reinstantiate;
+    template<template<class...> class T, class ...Args, class Ty>
+    struct reinstantiate<Ty, T<Args...>> {
+        using type = T<Ty>;
+    };
+
     template<template<class...> class T, class ...Args, class ...Tys>
-    struct reinstantiate<T<Args...>, Tys...> {
+    struct reinstantiate<info<Tys...>, T<Args...>> {
         using type = T<Tys...>;
     };
-    template<template<class...> class T, class ...Args, class ...Tys>
-    struct reinstantiate<T<Args...>, info<Tys...>> {
-        using type = T<Tys...>;
+
+    template<class Ty>
+    struct reinstantiate<Ty> {
+        template<class T>
+        using type = reinstantiate<Ty, T>::type;
     };
 
     /**
      * Specialize a templated type with new parameters.
+     * @tparam T pack of types to reinstantiate with
      * @tparam Ty templated type
      */
-    template<class T, class ...Tys>
-    using reinstantiate_t = typename reinstantiate<T, Tys...>::type;
+    template<class T, class Ty>
+    using reinstantiate_t = typename reinstantiate<T, Ty>::type;
 
+    template<class T, template<class...> class...> struct move_tparams;
     template<class T, template<class...> class Ty>
-    struct move_tparams { using type = Ty<T>; };
+    struct move_tparams<T, Ty> { 
+        using type = Ty<T>; 
+    };
+
     template<template<class...> class T, class ...Args, template<class...> class Ty>
-    struct move_tparams<T<Args...>, Ty> { using type = Ty<Args...>; };
+    struct move_tparams<T<Args...>, Ty> { 
+        using type = Ty<Args...>; 
+    };
+
     template<class ...Args, template<class...> class Ty>
-    struct move_tparams<template_pack<Args...>, Ty> { using type = Ty<Args&&...>; };
+    struct move_tparams<template_pack<Args...>, Ty> { 
+        using type = Ty<Args&&...>; 
+    };
 
     /**
      * Move the template parameters from T to Ty. If T is
@@ -169,25 +191,15 @@ namespace kaixo {
         using type = typename decltype(element_impl<I>(indexer<Args...>{}))::type;
     };
     
-    template<std::size_t I>
-    struct element<I> {
-        template<class ...Args>
-        struct impl {
-            using type = typename decltype(element_impl<I>(indexer<Args...>{}))::type;
-        };
-        
-        template<class ...Args>
-        struct impl<info<Args...>> {
-            using type = typename decltype(element_impl<I>(indexer<Args...>{}))::type;
-        };
-
-        template<class ...Args>
-        using type = impl<Args...>::type;
-    };
-
     template<std::size_t I, class ...Args>
     struct element<I, info<Args...>> {
         using type = typename decltype(element_impl<I>(indexer<Args...>{}))::type;
+    };
+
+    template<std::size_t I>
+    struct element<I> {
+        template<class ...Args>
+        using type = element<I, Args...>::type;
     };
 
     /**
@@ -368,7 +380,7 @@ namespace kaixo {
     template<class Ty, class ...Args>
     constexpr auto indices_except_v = indices_except<Ty, Args...>::value;
 
-    template<class> struct reverse;
+    template<class...> struct reverse;
     template<template<class...> class T, class ...As>
     struct reverse<T<As...>> {
         template<class> struct helper;
@@ -378,6 +390,12 @@ namespace kaixo {
                 element_impl<Is>(reverse_indexer<As...>{}))::type... > ;
         };
         using type = typename helper<std::index_sequence_for<As...>>::type;
+    };
+
+    template<>
+    struct reverse<> {
+        template<class T>
+        using type = reverse<T>::type;
     };
 
     /**
@@ -430,7 +448,7 @@ namespace kaixo {
     constexpr std::array<std::size_t, unique_count_v<Args...>>
         first_indices_v = first_indices<Args...>::value;
 
-    template<std::size_t, class> struct take;
+    template<std::size_t, class...> struct take;
     template<std::size_t N, template<class...> class T, class ...As>
     struct take<N, T<As...>> {
         template<class> struct helper;
@@ -441,6 +459,12 @@ namespace kaixo {
         using type = typename helper<std::make_index_sequence<N>>::type;
     };
 
+    template<std::size_t N>
+    struct take<N> {
+        template<class Ty>
+        using type = take<N, Ty>::type;
+    };
+
     /**
      * Take N types from the templated type Ty.
      * @tparam N amount of types to take
@@ -449,7 +473,7 @@ namespace kaixo {
     template<std::size_t N, class Ty>
     using take_t = typename take<N, Ty>::type;
 
-    template<std::size_t, class> struct drop;
+    template<std::size_t, class...> struct drop;
     template<std::size_t N, template<class...> class T, class ...As>
     struct drop<N, T<As...>> {
         template<class> struct helper;
@@ -458,6 +482,12 @@ namespace kaixo {
             using type = T<element_t<Is + N, As...>...>;
         };
         using type = typename helper<std::make_index_sequence<sizeof...(As) - N>>::type;
+    };
+
+    template<std::size_t N>
+    struct drop<N> {
+        template<class Ty>
+        using type = drop<N, Ty>::type;
     };
 
     /**
@@ -481,19 +511,8 @@ namespace kaixo {
     
     template<std::size_t N>
     struct drop_last<N> {
-        template<class> struct impl;
-        template<template<class...> class T, class ...As>
-        struct impl<T<As...>> {
-            template<class> struct helper;
-            template<std::size_t ...Is>
-            struct helper<std::index_sequence<Is...>> {
-                using type = T<element_t<Is, As...>...>;
-            };
-            using type = typename helper<std::make_index_sequence<sizeof...(As) - N>>::type;
-        };
-
         template<class Ty>
-        using type = impl<Ty>::type;
+        using type = drop_last<N, Ty>::type;
     };
 
     /**
@@ -504,13 +523,19 @@ namespace kaixo {
     template<std::size_t N, class Ty>
     using drop_last_t = typename drop_last<N, Ty>::type;
 
-    template<auto, class> struct keep_indices;
+    template<auto, class...> struct keep_indices;
     template<auto Array, template<class...> class T, class ...As>
     struct keep_indices<Array, T<As...>> {
         template<std::size_t ...Is> struct helper {
             using type = T<element_t<Is, As...>...>;
         };
         using type = typename array_to_pack_t<Array, helper>::type;
+    };    
+    
+    template<auto Array>
+    struct keep_indices<Array> {
+        template<class T>
+        using type = keep_indices<Array, T>::type;
     };
 
     /**
@@ -521,13 +546,19 @@ namespace kaixo {
     template<auto Array, class T>
     using keep_indices_t = typename keep_indices<Array, T>::type;
 
-    template<auto, class> struct remove_indices;
+    template<auto, class...> struct remove_indices;
     template<auto Array, template<class...> class T, class ...As>
     struct remove_indices<Array, T<As...>> {
         template<std::size_t ...Is> struct helper {
             using type = keep_indices_t<generate_indices_v<0, sizeof...(As), Is...>, T<As...>>;
         };
         using type = typename array_to_pack_t<Array, helper>::type;
+    };    
+
+    template<auto Array>
+    struct remove_indices<Array> {
+        template<class T>
+        using type = remove_indices<Array, T>::type;
     };
 
     /**
@@ -538,11 +569,17 @@ namespace kaixo {
     template<auto Array, class T>
     using remove_indices_t = typename remove_indices<Array, T>::type;
 
-    template<class, class> struct remove;
+    template<class, class...> struct remove;
     template<class Ty, template<class...> class T, class ...As>
     struct remove<Ty, T<As...>> {
         using type = typename keep_indices<
             indices_except_v<Ty, As...>, T<As...>>::type;
+    };    
+    
+    template<class Ty>
+    struct remove<Ty> {
+        template<class T>
+        using type = remove<Ty, T>::type;
     };
 
     /**
@@ -553,11 +590,17 @@ namespace kaixo {
     template<class T, class Ty>
     using remove_t = typename remove<T, Ty>::type;
 
-    template<class, class> struct keep;
+    template<class, class...> struct keep;
     template<class Ty, template<class...> class T, class ...As>
     struct keep<Ty, T<As...>> {
         using type = typename keep_indices<
             indices_v<Ty, As...>, T<As...>>::type;
+    };    
+    
+    template<class Ty>
+    struct keep<Ty> {
+        template<class T>
+        using type = keep<Ty, T>::type;
     };
 
     /**
@@ -568,11 +611,17 @@ namespace kaixo {
     template<class T, class Ty>
     using keep_t = typename keep<T, Ty>::type;
 
-    template<std::size_t, class> struct erase;
+    template<std::size_t, class...> struct erase;
     template<std::size_t I, template<class...> class T, class ...As>
     struct erase<I, T<As...>> {
         using type = keep_indices_t<
             generate_indices_v<0, sizeof...(As), I>, T<As... >>;
+    };    
+    
+    template<std::size_t I>
+    struct erase<I> {
+        template<class T>
+        using type = erase<I, T>::type;
     };
 
     /**
@@ -583,14 +632,21 @@ namespace kaixo {
     template<std::size_t I, class Ty>
     using erase_t = typename erase<I, Ty>::type;
 
-    template<class, class> struct append;
+    template<class, class...> struct append;
     template<class Ty, template<class...> class T, class ...As>
     struct append<Ty, T<As...>> {
         using type = T<As..., Ty>;
     };
+
     template<class ...Bs, template<class...> class T, class ...As>
     struct append<info<Bs...>, T<As...>> {
         using type = T<As..., Bs...>;
+    };
+
+    template<class Ty>
+    struct append<Ty> {
+        template<class T>
+        using type = append<Ty, T>::type;
     };
 
     /**
@@ -601,14 +657,21 @@ namespace kaixo {
     template<class T, class Ty>
     using append_t = typename append<T, Ty>::type;
 
-    template<class, class> struct prepend;
+    template<class, class...> struct prepend;
     template<class Ty, template<class...> class T, class ...As>
     struct prepend<Ty, T<As...>> {
         using type = T<Ty, As...>;
     };
+
     template<class ...Bs, template<class...> class T, class ...As>
     struct prepend<info<Bs...>, T<As...>> {
         using type = T<Bs..., As...>;
+    };
+
+    template<class Ty>
+    struct prepend<Ty> {
+        template<class T>
+        using type = prepend<Ty, T>::type;
     };
 
     /**
@@ -619,8 +682,10 @@ namespace kaixo {
     template<class T, class Ty>
     using prepend_t = typename prepend<T, Ty>::type;
 
+    template<std::size_t, class, class...> struct insert;
+
     template<std::size_t I, class T, class Ty>
-    struct insert {
+    struct insert<I, T, Ty> {
         using _as_info = move_tparams_t<Ty, info>;
         using _result = append_t<drop_t<I, _as_info>, append_t<T, take_t<I, _as_info>>>;
 
@@ -633,6 +698,12 @@ namespace kaixo {
         using type = typename helper<_result, Ty>::type;
     };
 
+    template<std::size_t I, class T>
+    struct insert<I, T> {
+        template<class Ty>
+        using type = insert<I, T, Ty>::type;
+    };
+
     /**
      * Insert T at I in the template parameters of Ty.
      * @tparam I index
@@ -642,7 +713,7 @@ namespace kaixo {
     template<std::size_t I, class T, class Ty>
     using insert_t = typename insert<I, T, Ty>::type;
 
-    template<class> struct unique;
+    template<class...> struct unique;
     template<template<class...> class T, class ...As>
     struct unique<T<As...>> {
         template<class> struct helper;
@@ -655,6 +726,12 @@ namespace kaixo {
             std::make_index_sequence<unique_count_v<As...>>>::type;
     };
 
+    template<>
+    struct unique<> {
+        template<class Ty>
+        using type = unique<Ty>::type;
+    };
+
     /**
      * Only keep unique types in the template parameters of Ty.
      * @tparam Ty templated type
@@ -662,17 +739,24 @@ namespace kaixo {
     template<class Ty>
     using unique_t = typename unique<Ty>::type;
 
-    template<std::size_t S, std::size_t E, class Ty>
-    using sub_t = take_t<(E - S), drop_t<S, Ty>>;
-
     /**
      * Only keep the types from index S to E in the
      * template parameters of Ty.
      * @tparam Ty templated type
      */
     template<std::size_t S, std::size_t E, class Ty>
-    struct sub {
+    using sub_t = take_t<(E - S), drop_t<S, Ty>>;
+
+    template<std::size_t, std::size_t, class...> struct sub;
+    template<std::size_t S, std::size_t E, class Ty>
+    struct sub<S, E, Ty> {
         using type = sub_t<S, E, Ty>;
+    };
+
+    template<std::size_t S, std::size_t E>
+    struct sub<S, E> {
+        template<class Ty>
+        using type = sub<S, E, Ty>::type;
     };
 
     template<class L>
@@ -755,6 +839,9 @@ namespace kaixo {
 
         constexpr static std::size_t value = helper<std::index_sequence_for<Args...>>::value();
     };
+
+    template<auto Filter, class ...Args>
+    struct count_filter<Filter, info<Args...>> : count_filter<Filter, Args...> {};
 
     /**
      * Amount of types in ...Args that match Filter.
@@ -858,9 +945,17 @@ namespace kaixo {
     template<auto Sorter, class Ty>
     using type_merge_sort_t = typename type_merge_sort<Sorter, Ty>::type;
 
+    template<auto, class...> struct sort_types;
+
     template<auto Sorter, class Ty>
-    struct sort_types {
+    struct sort_types<Sorter, Ty> {
         using type = type_merge_sort_t<Sorter, Ty>;
+    };
+
+    template<auto Sorter>
+    struct sort_types<Sorter> {
+        template<class Ty>
+        using type = sort_types<Sorter, Ty>::type;
     };
 
     /**
@@ -881,7 +976,7 @@ namespace kaixo {
         constexpr auto ralignment = []<class A, class B>{ return alignof_v<A> > alignof_v<B>; };
     }
 
-    template<class...>struct concat { using type = info<>; };
+    template<class...> struct concat { using type = info<>; };
     template<template<class...> class A, class ...As>
     struct concat<A<As...>> { using type = A<As...>; };
     template<template<class...> class A, template<class...> class B, class ...As, class ...Bs, class ...Rest>
@@ -958,11 +1053,20 @@ namespace kaixo {
     template<class ...Tys>
     using cartesian_t = typename cartesian<Tys...>::type;
 
+    template<template<class...> class, class...> struct transform;
+
     template<template<class...> class T, class Ty>
-    struct transform { using type = T<Ty>; };
+    struct transform<T, Ty> { using type = T<Ty>; };
 
     template<template<class...> class T, class ...As>
     struct transform<T, info<As...>> { using type = info<T<As>...>; };
+
+    template<template<class...> class T>
+    struct transform<T> { 
+        template<class Ty>
+        using type = transform<T, Ty>::type; 
+    };
+
 
     /**
      * Transform Ty using T.
@@ -972,8 +1076,11 @@ namespace kaixo {
     template<template<class...> class T, class Ty>
     using transform_t = typename transform<T, Ty>::type;
 
+    template<auto, template<class...> class, class...>
+    struct conditional_transform;
+    
     template<auto Filter, template<class...> class T, class Ty>
-    struct conditional_transform { using type = Ty; };
+    struct conditional_transform<Filter, T, Ty> { using type = Ty; };
 
     template<auto Filter, template<class...> class T, class Ty>
         requires (filter_object{ Filter }.template call<0, Ty>())
@@ -982,6 +1089,12 @@ namespace kaixo {
     template<auto Filter, template<class...> class T, class ...As>
     struct conditional_transform<Filter, T, info<As...>> {
         using type = info<typename conditional_transform<Filter, T, As>::type...>;
+    };
+
+    template<auto Filter, template<class...> class T>
+    struct conditional_transform<Filter, T> { 
+        template<class Ty>
+        using type = conditional_transform<Filter, T, Ty>::type; 
     };
 
     /**
@@ -993,16 +1106,27 @@ namespace kaixo {
     template<auto Filter, template<class...> class T, class Ty>
     using conditional_transform_t = typename conditional_transform<Filter, T, Ty>::type;
 
-    template<class A, class B, class ...Args> struct replace {
-        using type = typename conditional_transform<is_same<A>, typename partial_last<change, B>::type, info<Args...>>::type;
+    template<class A, class B, class ...Args> 
+    struct replace {
+        using type = typename conditional_transform<is_same<A>, 
+            typename partial_last<change, B>::type, info<Args...>>::type;
     };
+
     template<class ...As, class B, class ...Args>
     struct replace<info<As...>, B, Args...> {
-        using type = typename conditional_transform<(is_same<As> || ...), typename partial_last<change, B>::type, info<Args...>>::type;
+        using type = typename conditional_transform<(is_same<As> || ...),
+            typename partial_last<change, B>::type, info<Args...>>::type;
     };
+
     template<class A, class B, class ...Args>
     struct replace<A, B, info<Args...>> {
         using type = typename replace<A, B, Args...>::type;
+    };
+
+    template<class A, class B>
+    struct replace<A, B> {
+        template<class ...Args>
+        using type = replace<A, B, Args...>::type;
     };
 
     /**

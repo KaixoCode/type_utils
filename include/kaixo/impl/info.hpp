@@ -195,8 +195,8 @@ namespace kaixo {
     struct specialized_info<templated_t<Tys>...> {
         using _selected_specialization = _s_templated;
 
-        template<class ...Args>
-        using instantiate = info<instantiate_t<Tys, Args...>...>;
+        template<class Arg>
+        using instantiate = info<instantiate_t<Arg, Tys>...>;
     };
 
     template<class ...T>
@@ -271,7 +271,8 @@ namespace kaixo {
         using uninstantiate = info<uninstantiate_t<Tys>...>;
         using tparams = tparams_t<Tys...>;
 
-        template<class ...Args> using reinstantiate = info<reinstantiate_t<Tys, Args...>...>;
+        template<class Arg> using reinstantiate = info<reinstantiate_t<Arg, Tys>...>;
+        template<class Arg> using instantiate = info<instantiate_t<Arg, Tys>...>;
 
         template<template<class...> class T> using transform = transform_t<T, info>;
         template<template<class...> class T> using as = T<Tys...>;
@@ -280,6 +281,10 @@ namespace kaixo {
         constexpr static auto for_each = []<class Ty>(Ty && lambda) {
             return lambda.operator() < Tys... > ();
         };
+
+        template<class ...Args> using concat = concat_t<info, Args...>;
+        template<class ...Args> using zip = zip_t<info, Args...>;
+        template<class ...Args> using cartesian = cartesian_t<info, Args...>;
 
         template<auto Filter> struct when {
             template<template<class...> class T>
