@@ -172,9 +172,7 @@ namespace kaixo {
     struct specialized_info<Tys...> {
         using _selected_specialization = _s_aggregate;
 
-        // BUG: struct_size_v does not work when type present 
-        //      that defines constructor taking anything.
-        //using members = info<struct_members_t<Tys>...>;
+        using members = info<struct_members_t<Tys>...>;
     };
 
     template<auto V>
