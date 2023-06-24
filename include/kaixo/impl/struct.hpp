@@ -50,47 +50,75 @@ namespace kaixo {
     constexpr std::size_t struct_size_v = struct_size<Ty>::value;
 
     /**
-     * Find member types of a struct, uses a macro to define
-     * overloads up to 99 members using structured bindings.
+     * Concept for types that have a structured binding.
+     * @tparam Ty type
      */
-    template<aggregate Ty, std::size_t N>
-    struct struct_members {
+    template<class Ty>
+    concept structured_binding = aggregate<Ty> || requires () {
+        typename std::tuple_element<0, Ty>::type;
+    };
+
+    template<class Ty> struct structured_binding_impl : std::false_type {};
+    template<structured_binding Ty> struct structured_binding_impl<Ty> : std::false_type {};
+
+    /**
+     * Type trait for types that have a structured binding.
+     */
+    constexpr auto has_structured_binding = type_trait<structured_binding_impl>{};
+
+    template<class Ty> struct binding_size;
+    template<aggregate Ty>
+    struct binding_size<Ty> : std::integral_constant<std::size_t, struct_size_v<Ty>> {};
+    template<structured_binding Ty>
+    struct binding_size<Ty> : std::integral_constant<std::size_t, std::tuple_size_v<Ty>> {};
+
+    /**
+     * Get the size of the structured binding of a type.
+     * @tparam Ty type
+     */
+    template<class Ty>
+    constexpr std::size_t binding_size_v = binding_size<Ty>::value;
+
+    /**
+     * Find types in structured binding.
+     * @tparam Ty type
+     * @tparam N number of elements in binding
+     */
+    template<structured_binding Ty, std::size_t N>
+    struct binding_types_impl {
         using type = info<Ty>;
     };
 
-    template<aggregate Ty>
-    struct struct_members<Ty, 0> {
+    template<structured_binding Ty>
+    struct binding_types_impl<Ty, 0> {
         using type = info<Ty>;
     };
 
 #define KAIXO_STRUCT_MEMBERS_M(c, V, P)            \
-    template<aggregate Ty>                         \
-        requires (struct_size_v<Ty> == c)          \
-    struct struct_members<Ty, c> {                 \
+    template<structured_binding Ty>                    \
+        requires (binding_size_v<Ty> == c)         \
+    struct binding_types_impl<Ty, c> {             \
         using type = typename decltype([](Ty& ty) {\
             auto& [V] = ty;                        \
             return info<P>{};                      \
         }(std::declval<Ty&>()));                   \
     };
 
+    template<structured_binding Ty, std::size_t N>
+    struct binding_get_member {};
 
-    template<aggregate Ty, std::size_t N>
-    struct struct_get_member {
-    };
-
-    template<aggregate Ty>
-    struct struct_get_member<Ty, 0> {
-    };
+    template<structured_binding Ty>
+    struct binding_get_member<Ty, 0> {};
 
 #define KAIXO_STRUCT_GET_MEMBERS_M(c, V, P)                                       \
-    template<aggregate Ty>                                                        \
-        requires (struct_size_v<Ty> == c)                                         \
-    struct struct_get_member<Ty, c> {                                             \
+    template<structured_binding Ty>                                               \
+        requires (binding_size_v<Ty> == c)                                        \
+    struct binding_get_member<Ty, c> {                                            \
         template<std::size_t I, class Arg>                                        \
             requires (I < c && std::same_as<std::decay_t<Arg>, Ty>                \
                  && !std::is_volatile_v<std::remove_reference_t<Arg>>)            \
         constexpr static decltype(auto) get(Arg&& arg) {                          \
-            using type = struct_members<Ty, c>::type::template element<I>;        \
+            using type = binding_types<Ty, c>::type::template element<I>;         \
             auto& [V] = arg;                                                      \
             if constexpr (type::is_lvalue_reference::value) {                     \
                 return std::get<I>(std::forward_as_tuple(V));                     \
@@ -221,22 +249,44 @@ namespace kaixo {
 
 #define KAIXO_DECLTYPE(x) decltype(x)
     KAIXO_MAKE_UNIQUE(KAIXO_STRUCT_MEMBERS_M, 99, KAIXO_DECLTYPE);
-#define KAIXO_DECLTYPE2(x) decltype(x)
-    KAIXO_MAKE_UNIQUE(KAIXO_STRUCT_GET_MEMBERS_M, 99, KAIXO_DECLTYPE2);
+
+    /**
+     * Find member types of a struct, uses a macro to define
+     * overloads up to 99 members using structured bindings.
+     */
+    template<aggregate Ty>
+    struct struct_members : binding_types_impl<Ty, struct_size_v<Ty>> {};
 
     /**
      * Find the member types of a struct.
      * @tparam Ty struct
      */
     template<aggregate Ty>
-    using struct_members_t = typename struct_members<Ty, struct_size_v<Ty>>::type;
+    using struct_members_t = typename struct_members<Ty>::type;
+
+    /**
+     * Find the types of structured bindings.
+     * @tparam Ty type
+     */
+    template<structured_binding Ty>
+    struct binding_types : binding_types_impl<Ty, binding_size_v<Ty>> {};
+
+    /**
+     * Get the types of the structured binding elements of Ty.
+     * @tparam Ty type
+     */
+    template<structured_binding Ty>
+    using binding_types_t = typename binding_types<Ty>::type;
+
+#define KAIXO_DECLTYPE2(x) decltype(x)
+    KAIXO_MAKE_UNIQUE(KAIXO_STRUCT_GET_MEMBERS_M, 99, KAIXO_DECLTYPE2);
 }
 
 namespace std {
     template<std::size_t I, class Ty>
-        requires (kaixo::aggregate<decay_t<Ty>> && !is_volatile_v<remove_reference_t<Ty>>)
+        requires (kaixo::structured_binding<decay_t<Ty>> && !is_volatile_v<remove_reference_t<Ty>>)
     constexpr decltype(auto) get(Ty&& value) {
         using type = decay_t<Ty>;
-        return kaixo::struct_get_member<type, kaixo::struct_size_v<type>>::get<I>(std::forward<Ty>(value));
+        return kaixo::binding_get_member<type, kaixo::binding_size_v<type>>::get<I>(std::forward<Ty>(value));
     }
 }
