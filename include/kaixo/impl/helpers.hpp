@@ -114,16 +114,12 @@ namespace kaixo {
         // This constraint on constructible_from prevents this.
         template<class Ty>
             requires (std::is_lvalue_reference_v<Ty&> && !std::is_rvalue_reference_v<Ty&> &&
-            !std::constructible_from<Ty&&, convertible_to_everything> &&
-            !std::constructible_from<Ty&, convertible_to_everything> &&
             !std::constructible_from<Ty, convertible_to_everything>)
         constexpr operator Ty& ();
 
         template<class Ty>
             requires (std::is_rvalue_reference_v<Ty&&> && !std::is_lvalue_reference_v<Ty&&> &&
-            !std::constructible_from<Ty&&, convertible_to_everything> &&
-            !std::constructible_from<Ty&, convertible_to_everything> &&
-            !std::constructible_from<Ty, convertible_to_everything>)
+            !std::constructible_from<Ty&&, convertible_to_everything>)
         constexpr operator Ty&& ();
     };
 
@@ -132,20 +128,17 @@ namespace kaixo {
      */
     template<class ...Tys>
     struct only_convertible_to {
-        template<class Ty> 
-            requires (((std::same_as<std::decay_t<Ty>, Tys>) || ...) &&
-            std::is_lvalue_reference_v<Ty&&> && !std::is_rvalue_reference_v<Ty&&> &&
-            !std::constructible_from<Ty&&, only_convertible_to> &&
-            !std::constructible_from<Ty&, only_convertible_to> &&
-            !std::constructible_from<Ty, only_convertible_to>)
-        constexpr operator Ty && ();
         template<class Ty>
             requires (((std::same_as<std::decay_t<Ty>, Tys>) || ...) &&
             std::is_lvalue_reference_v<Ty&> && !std::is_rvalue_reference_v<Ty&> &&
-            !std::constructible_from<Ty&&, only_convertible_to> &&
-            !std::constructible_from<Ty&, only_convertible_to> &&
             !std::constructible_from<Ty, only_convertible_to>)
         constexpr operator Ty& ();
+
+        template<class Ty>
+            requires (((std::same_as<std::decay_t<Ty>, Tys>) || ...) &&
+            std::is_rvalue_reference_v<Ty&&> && !std::is_lvalue_reference_v<Ty&&> &&
+            !std::constructible_from<Ty&&, only_convertible_to>)
+            constexpr operator Ty && ();
     };
 
     /**
@@ -157,17 +150,13 @@ namespace kaixo {
             requires (((!std::same_as<std::decay_t<Ty>, Tys>) && ...)
             && ((!std::is_base_of_v<std::decay_t<Ty>, Tys>) && ...) &&
             std::is_lvalue_reference_v<Ty&> && !std::is_rvalue_reference_v<Ty&> &&
-            !std::constructible_from<Ty&&, not_convertible_to> &&
-            !std::constructible_from<Ty&, not_convertible_to> &&
             !std::constructible_from<Ty, not_convertible_to>)
         constexpr operator Ty& ();
         template<class Ty> 
             requires (((!std::same_as<std::decay_t<Ty>, Tys>) && ...)
             && ((!std::is_base_of_v<std::decay_t<Ty>, Tys>) && ...) &&
-            std::is_lvalue_reference_v<Ty&&> && !std::is_rvalue_reference_v<Ty&&> &&
-            !std::constructible_from<Ty&&, not_convertible_to> &&
-            !std::constructible_from<Ty&, not_convertible_to> &&
-            !std::constructible_from<Ty, not_convertible_to>)
+            std::is_rvalue_reference_v<Ty&&> && !std::is_lvalue_reference_v<Ty&&> &&
+            !std::constructible_from<Ty&&, not_convertible_to>)
         constexpr operator Ty && ();
     };
 

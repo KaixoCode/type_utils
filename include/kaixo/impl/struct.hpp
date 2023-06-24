@@ -63,15 +63,49 @@ namespace kaixo {
         using type = info<Ty>;
     };
 
-#define KAIXO_STRUCT_MEMBERS_M(c, V, P)                                        \
-        template<aggregate Ty>                                                 \
-            requires (struct_size_v<Ty> == c)                                  \
-        struct struct_members<Ty, c> {                                         \
-            using type = typename decltype([](Ty ty) {                         \
-                auto [V] = ty;                                                 \
-                return info<P>{};                                              \
-            }(std::declval<Ty>()));                                            \
-        };
+#define KAIXO_STRUCT_MEMBERS_M(c, V, P)            \
+    template<aggregate Ty>                         \
+        requires (struct_size_v<Ty> == c)          \
+    struct struct_members<Ty, c> {                 \
+        using type = typename decltype([](Ty ty) { \
+            auto [V] = ty;                         \
+            return info<P>{};                      \
+        }(std::declval<Ty>()));                    \
+    };
+
+
+    template<aggregate Ty, std::size_t N>
+    struct struct_get_member {
+    };
+
+    template<aggregate Ty>
+    struct struct_get_member<Ty, 0> {
+    };
+
+#define KAIXO_STRUCT_GET_MEMBERS_M(c, V, P)                                       \
+    template<aggregate Ty>                                                        \
+        requires (struct_size_v<Ty> == c)                                         \
+    struct struct_get_member<Ty, c> {                                             \
+        template<std::size_t I, class Arg>                                        \
+            requires (I < c && std::same_as<std::decay_t<Arg>, Ty>                \
+                 && !std::is_volatile_v<std::remove_reference_t<Arg>>)            \
+        constexpr static decltype(auto) get(Arg&& arg) {                          \
+            using type = struct_members<Ty, c>::type::template element<I>;        \
+            auto& [V] = arg;                                                      \
+            if constexpr (type::is_lvalue_reference::value) {                     \
+                return std::get<I>(std::forward_as_tuple(V));                     \
+            } else {                                                              \
+                return std::move(std::get<I>(std::forward_as_tuple(V)));          \
+            }                                                                     \
+        }                                                                         \
+        template<std::size_t I, class Arg>                                        \
+            requires (I < c && std::same_as<std::decay_t<Arg>, Ty>                \
+                 && !std::is_volatile_v<std::remove_reference_t<Arg>>)            \
+        constexpr static decltype(auto) get(Arg& arg) {                           \
+            auto& [V] = arg;                                                      \
+            return std::get<I>(std::forward_as_tuple(V));                         \
+        }                                                                         \
+    };
 
 #define KAIXO_EMPTY
 #define KAIXO_COMMA KAIXO_COMMA1
@@ -187,6 +221,8 @@ namespace kaixo {
 
 #define KAIXO_DECLTYPE(x) decltype(x)
     KAIXO_MAKE_UNIQUE(KAIXO_STRUCT_MEMBERS_M, 99, KAIXO_DECLTYPE);
+#define KAIXO_DECLTYPE2(x) decltype(x)
+    KAIXO_MAKE_UNIQUE(KAIXO_STRUCT_GET_MEMBERS_M, 99, KAIXO_DECLTYPE2);
 
     /**
      * Find the member types of a struct.
@@ -194,4 +230,13 @@ namespace kaixo {
      */
     template<aggregate Ty>
     using struct_members_t = typename struct_members<Ty, struct_size_v<Ty>>::type;
+}
+
+namespace std {
+    template<std::size_t I, class Ty>
+        requires (kaixo::aggregate<decay_t<Ty>> && !is_volatile_v<remove_reference_t<Ty>>)
+    constexpr decltype(auto) get(Ty&& value) {
+        using type = decay_t<Ty>;
+        return kaixo::struct_get_member<type, kaixo::struct_size_v<type>>::get<I>(std::forward<Ty>(value));
+    }
 }
