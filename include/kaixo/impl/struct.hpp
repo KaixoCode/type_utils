@@ -67,10 +67,10 @@ namespace kaixo {
     template<aggregate Ty>                         \
         requires (struct_size_v<Ty> == c)          \
     struct struct_members<Ty, c> {                 \
-        using type = typename decltype([](Ty ty) { \
-            auto [V] = ty;                         \
+        using type = typename decltype([](Ty& ty) {\
+            auto& [V] = ty;                        \
             return info<P>{};                      \
-        }(std::declval<Ty>()));                    \
+        }(std::declval<Ty&>()));                   \
     };
 
 
