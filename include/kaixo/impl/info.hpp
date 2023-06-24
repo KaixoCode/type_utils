@@ -9,6 +9,7 @@
 namespace kaixo {
 
     struct _s_none {};
+    struct _s_binding {};
     struct _s_fun {};
     struct _s_fun_ptr {};
     struct _s_integral {};
@@ -23,6 +24,18 @@ namespace kaixo {
     template<class ...Tys>
     struct specialized_info {
         using _selected_specialization = _s_none;
+    };
+
+    /**
+     * Specialization for types that define structured binding.
+     */
+    template<class ...Tys>
+        requires ((structured_binding<Tys> && ...) && ((!array<Tys> && !aggregate<Tys>) && ...))
+    struct specialized_info<Tys...> {
+        using _selected_specialization = _s_binding;
+
+        using binding_types = info<binding_types_t<Tys>...>;
+        using binding_size = info<value_t<binding_size_v<Tys>>...>;
     };
 
     /**
@@ -161,11 +174,7 @@ namespace kaixo {
     };
 
     /**
-     * Specialization for structs, contains information on
-     * members, like offset, types, and if 'register' macro was
-     * used, also member names and pointers. Also contains
-     * non-constexpr member pointers, made using std::bit_cast
-     * and the calculated offset of each member.
+     * Specialization for structs, contains information on members.
      */
     template<class ...Tys>
         requires ((aggregate<Tys> && ...) && (!array<Tys> && ...))
@@ -173,8 +182,12 @@ namespace kaixo {
         using _selected_specialization = _s_aggregate;
 
         using members = info<struct_members_t<Tys>...>;
+        using struct_size = info<value_t<struct_size_v<Tys>>...>;
     };
 
+    /**
+     * Specialization for a single value.
+     */
     template<auto V>
     struct specialized_info<value_t<V>> : info<decltype(V)> {
         using _selected_specialization = _s_value;
@@ -182,6 +195,9 @@ namespace kaixo {
         constexpr static auto value = V;
     };
 
+    /**
+     * Specialization for pack of values.
+     */
     template<auto ...Vs> requires (sizeof...(Vs) > 1)
         struct specialized_info<value_t<Vs>...> : info<decltype(Vs)...> {
         using _selected_specialization = _s_value;
@@ -189,6 +205,9 @@ namespace kaixo {
         template<std::size_t I> constexpr static auto value = element_t<I, value_t<Vs>...>::value;
     };
 
+    /**
+     * Specialization for templated types.
+     */
     template<template<class...> class ...Tys>
     struct specialized_info<templated_t<Tys>...> {
         using _selected_specialization = _s_templated;
