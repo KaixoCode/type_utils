@@ -65,6 +65,7 @@ namespace kaixo {
 
         using add_noexcept = info<typename function_info<Tys>::add_noexcept...>;
         using remove_noexcept = info<typename function_info<Tys>::remove_noexcept...>;
+        using fun_decay = info<typename function_info<Tys>::fun_decay...>;
     };
 
     template<class ...Tys>

@@ -64,6 +64,7 @@ struct function_info_impl<R(Ty::*)(Args...) CONST VOLATILE REF NOEXCEPT> {      
     using remove_fun_cvref = R(Ty::*)(Args...) NOEXCEPT;                                 \
     using add_noexcept = R(Ty::*)(Args...) CONST VOLATILE REF noexcept;                  \
     using remove_noexcept = R(Ty::*)(Args...) CONST VOLATILE REF;                        \
+    using fun_decay = R(Ty::*)(Args...);                                                 \
 };
 
     KAIXO_MEMBER_CALL(KAIXO_MEMBER_FUNCTION_INFO_MOD);
@@ -95,6 +96,7 @@ struct function_info_impl<R(Args...) CONST VOLATILE REF NOEXCEPT> {             
     using remove_fun_cvref = R(Args...) NOEXCEPT;                                       \
     using add_noexcept = R(Args...) CONST VOLATILE REF noexcept;                        \
     using remove_noexcept = R(Args...) CONST VOLATILE REF;                              \
+    using fun_decay = R(Args...);                                                       \
 };
 
     KAIXO_MEMBER_CALL(KAIXO_FUNCTION_INFO_MOD);
@@ -110,6 +112,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     constexpr static bool is_noexcept = std::same_as<void() noexcept, void() NOEXCEPT>;     \
     using add_noexcept = R(Args...) noexcept;                                               \
     using remove_noexcept = R(Args...);                                                     \
+    using fun_decay = R(*)(Args...);                                                        \
 };
 
     KAIXO_FUNCTION_PTR_INFO_MOD(NO_ARG);
