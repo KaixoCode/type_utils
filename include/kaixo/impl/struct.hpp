@@ -2,7 +2,7 @@
 #include "info.hpp"
 
 /**
- * Helpers for getting information about a struct.
+ * Helpers for getting information about a struct and structured bindings.
  */
 namespace kaixo {
     template<class Ty, class ...Args>
@@ -49,25 +49,8 @@ namespace kaixo {
     template<aggregate Ty>
     constexpr std::size_t struct_size_v = struct_size<Ty>::value;
 
-    /**
-     * Concept for types that have a structured binding.
-     * @tparam Ty type
-     */
-    template<class Ty>
-    concept structured_binding = aggregate<Ty> || requires () {
-        typename std::tuple_element<0, Ty>::type;
-    };
-
-    template<class Ty> struct structured_binding_impl : std::false_type {};
-    template<structured_binding Ty> struct structured_binding_impl<Ty> : std::false_type {};
-
-    /**
-     * Type trait for types that have a structured binding.
-     */
-    constexpr auto has_structured_binding = type_trait<structured_binding_impl>{};
-
     template<class Ty> struct binding_size;
-    template<aggregate Ty>
+    template<aggregate Ty> 
     struct binding_size<Ty> : std::integral_constant<std::size_t, struct_size_v<Ty>> {};
     template<structured_binding Ty>
     struct binding_size<Ty> : std::integral_constant<std::size_t, std::tuple_size_v<Ty>> {};

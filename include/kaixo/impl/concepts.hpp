@@ -95,5 +95,10 @@ namespace kaixo {
 
         template<class Test, template<class...> class Ref>
         concept specialization = specialization_impl<std::decay_t<Test>, Ref>::value;
+
+        template<class Ty>
+        concept structured_binding = aggregate<Ty> || requires () {
+            typename std::tuple_element<0, Ty>::type;
+        };
     }
 }

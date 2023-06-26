@@ -247,5 +247,10 @@ namespace kaixo {
         };
 
         template<template<class ...> class Ty> constexpr auto is_specialization = type_trait<typename is_specialization_impl<Ty>::type>{};
+
+        template<class Ty> struct structured_binding_impl : std::false_type {};
+        template<structured_binding Ty> struct structured_binding_impl<Ty> : std::false_type {};
+
+        constexpr auto has_structured_binding = type_trait<structured_binding_impl>{};
     }
 }
