@@ -84,6 +84,11 @@ namespace kaixo {
     struct instantiate<info<Tys...>, templated_t<T>> {
         using type = T<Tys...>;
     };
+    
+    template<template<class...> class T, class Ty>
+    struct instantiate<Ty, templated_t<T>> {
+        using type = T<Ty>;
+    };
 
     template<class T>
     struct instantiate<T> {
