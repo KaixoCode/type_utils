@@ -16,9 +16,8 @@ namespace kaixo {
          */
         template<template<class ...> class A, template<class ...> class B>
         struct type_trait_and {
-            template<class ...Args> struct type {
-                constexpr static bool value = A<Args...>::value && B<Args...>::value;
-            };
+            template<class ...Args> struct type 
+                : std::bool_constant<A<Args...>::value && B<Args...>::value> {};
         };
 
         /**
@@ -28,9 +27,8 @@ namespace kaixo {
          */
         template<template<class ...> class A, template<class ...> class B>
         struct type_trait_or {
-            template<class ...Args> struct type {
-                constexpr static bool value = A<Args...>::value || B<Args...>::value;
-            };
+            template<class ...Args> struct type
+                : std::bool_constant<A<Args...>::value || B<Args...>::value> {};
         };
 
         /**
@@ -39,9 +37,8 @@ namespace kaixo {
          */
         template<template<class ...> class A>
         struct type_trait_not {
-            template<class ...Args> struct type {
-                constexpr static bool value = !A<Args...>::value;
-            };
+            template<class ...Args> struct type
+                : std::bool_constant<!A<Args...>::value> {};
         };
 
         /**
@@ -52,9 +49,8 @@ namespace kaixo {
          */
         template<template<class ...> class A, class ...Tys>
         struct type_trait_partial_last {
-            template<class ...Args> struct type {
-                constexpr static bool value = A<Args..., Tys...>::value;
-            };
+            template<class ...Args> struct type
+                : std::bool_constant<A<Args..., Tys...>::value> {};
         };
 
         /**
@@ -65,9 +61,8 @@ namespace kaixo {
          */
         template<template<class ...> class A, class ...Tys>
         struct type_trait_partial_last<A, info<Tys...>> {
-            template<class ...Args> struct type {
-                constexpr static bool value = A<Args..., Tys...>::value;
-            };
+            template<class ...Args> struct type
+                : std::bool_constant<A<Args..., Tys...>::value>{};
         };
 
         /**
@@ -78,9 +73,8 @@ namespace kaixo {
          */
         template<template<class ...> class A, class ...Tys>
         struct type_trait_partial_first {
-            template<class ...Args> struct type {
-                constexpr static bool value = A<Tys..., Args...>::value;
-            };
+            template<class ...Args> struct type
+                : std::bool_constant<A<Tys..., Args...>::value> {};
         };
 
         /**
@@ -91,9 +85,8 @@ namespace kaixo {
          */
         template<template<class ...> class A, class ...Tys>
         struct type_trait_partial_first<A, info<Tys...>> {
-            template<class ...Args> struct type {
-                constexpr static bool value = A<Tys..., Args...>::value;
-            };
+            template<class ...Args> struct type
+                : std::bool_constant<A<Tys..., Args...>::value> {};
         };
 
         /**
@@ -123,7 +116,7 @@ namespace kaixo {
          * @tparam V type_trait value
          */
         template<class Ty, is_type_trait auto V>
-        concept require = V.template value<Ty>;
+        concept require = bool(decltype(V)::template value<Ty>);
 
         /**
          * Boolean and on 2 type traits
@@ -132,7 +125,8 @@ namespace kaixo {
          * @return type trait that matches if both match
          */
         template<template<class ...> class A, template<class ...> class B>
-        consteval auto operator and(type_trait<A>, type_trait<B>) {
+        consteval auto operator and(type_trait<A>, type_trait<B>) 
+            -> type_trait<typename type_trait_and<A, B>::type> {
             return type_trait<typename type_trait_and<A, B>::type>{};
         }
 
@@ -143,7 +137,8 @@ namespace kaixo {
          * @return type trait that matches if either matches
          */
         template<template<class ...> class A, template<class ...> class B>
-        consteval auto operator or(type_trait<A>, type_trait<B>) {
+        consteval auto operator or(type_trait<A>, type_trait<B>) 
+            -> type_trait<typename type_trait_or<A, B>::type> {
             return type_trait<typename type_trait_or<A, B>::type>{};
         }
 
@@ -153,7 +148,8 @@ namespace kaixo {
          * @return type trait that matches if A doesn't match
          */
         template<template<class ...> class A>
-        consteval auto operator not(type_trait<A>) {
+        consteval auto operator not(type_trait<A>)
+            -> type_trait<typename type_trait_not<A>::type> {
             return type_trait<typename type_trait_not<A>::type>{};
         }
 
@@ -249,7 +245,7 @@ namespace kaixo {
         template<template<class ...> class Ty> constexpr auto is_specialization = type_trait<typename is_specialization_impl<Ty>::type>{};
 
         template<class Ty> struct structured_binding_impl : std::false_type {};
-        template<structured_binding Ty> struct structured_binding_impl<Ty> : std::false_type {};
+        template<structured_binding Ty> struct structured_binding_impl<Ty> : std::true_type {};
 
         constexpr auto has_structured_binding = type_trait<structured_binding_impl>{};
     }
