@@ -454,7 +454,7 @@ namespace kaixo {
         using add_pointer = info<kaixo::add_pointer_t<Tys>...>;
 
         template<class Ty> using to_function_args = info<Ty(Tys...)>;
-        template<class Ty> using to_member_pointer = info<Tys Ty::* ...>;
+        template<class Ty> using to_member_pointer = info<kaixo::remove_reference_t<Tys> Ty::* ...>;
     };
 
     /**
