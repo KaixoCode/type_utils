@@ -476,7 +476,7 @@ namespace kaixo {
      * @tparam Ty templated type
      */
     template<class Ty>
-    using as_info = move_tparams_t<decay_t<Ty>, info>;
+    using as_info = move_tparams_t<info, decay_t<Ty>>;
 
     template<std::size_t ...Is>
     constexpr std::array<std::size_t, sizeof...(Is)> as_array{ Is... };

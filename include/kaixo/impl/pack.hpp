@@ -129,20 +129,26 @@ namespace kaixo {
     template<class T, class Ty>
     using reinstantiate_t = typename reinstantiate<T, Ty>::type;
 
-    template<class T, template<class...> class...> struct move_tparams;
-    template<class T, template<class...> class Ty>
-    struct move_tparams<T, Ty> { 
+    template<template<class...> class, class ...> struct move_tparams;
+    template<template<class...> class Ty, class T>
+    struct move_tparams<Ty, T> { 
         using type = Ty<T>; 
     };
 
     template<template<class...> class T, class ...Args, template<class...> class Ty>
-    struct move_tparams<T<Args...>, Ty> { 
+    struct move_tparams<Ty, T<Args...>> {
         using type = Ty<Args...>; 
     };
 
     template<class ...Args, template<class...> class Ty>
-    struct move_tparams<template_pack<Args...>, Ty> { 
+    struct move_tparams<Ty, template_pack<Args...>> {
         using type = Ty<Args&&...>; 
+    };
+    
+    template<template<class...> class Ty>
+    struct move_tparams<Ty> {
+        template<class T>
+        using type = move_tparams<Ty, T>::type; 
     };
 
     /**
@@ -151,8 +157,8 @@ namespace kaixo {
      * @tparam T type or type with template parameters
      * @tparam Ty templated type
      */
-    template<class T, template<class...> class Ty>
-    using move_tparams_t = typename move_tparams<T, Ty>::type;
+    template<template<class...> class Ty, class T>
+    using move_tparams_t = typename move_tparams<Ty, T>::type;
 
     /**
      * Type linked to an index.
@@ -691,13 +697,13 @@ namespace kaixo {
 
     template<std::size_t I, class T, class Ty>
     struct insert<I, T, Ty> {
-        using _as_info = move_tparams_t<Ty, info>;
+        using _as_info = move_tparams_t<info, Ty>;
         using _result = append_t<drop_t<I, _as_info>, append_t<T, take_t<I, _as_info>>>;
 
         template<class, class> struct helper;
         template<class Info, template<class...> class Ty, class ...As>
         struct helper<Info, Ty<As...>> {
-            using type = move_tparams_t<Info, Ty>;
+            using type = move_tparams_t<Ty, Info>;
         };
 
         using type = typename helper<_result, Ty>::type;
@@ -928,7 +934,7 @@ namespace kaixo {
     struct type_merge_sort_merge<Sorter, info<>, info<Bs...>> { using type = info<Bs...>; };
 
     template<auto Sorter, class Ty> struct type_merge_sort
-        : type_merge_sort<Sorter, move_tparams<Ty, info>> {};
+        : type_merge_sort<Sorter, move_tparams<info, Ty>> {};
     template<auto Sorter, class ...Tys>
     struct type_merge_sort<Sorter, info<Tys...>> {
         constexpr static std::size_t _mid = sizeof...(Tys) / 2.;
@@ -998,9 +1004,9 @@ namespace kaixo {
     template<class... As> struct zip {
         using _first = info<typename info<As...>::template type<0>>;
         template<class A, std::size_t I> using a_a_i = typename info<A>::tparams::template element<I>::type;
-        template<std::size_t I> using at_index = typename _first::template reinstantiate<a_a_i<As, I>...>::type;
+        template<std::size_t I> using at_index = typename _first::template reinstantiate<info<a_a_i<As, I>...>>::type;
         template<std::size_t ...Is> struct helper {
-            using type = typename _first::template reinstantiate<at_index<Is>...>::type;
+            using type = typename _first::template reinstantiate<info<at_index<Is>...>>::type;
         };
         using type = array_to_pack_t < generate_indices_v < 0, std::min({ info<As>::tparams::size... }) > , helper > ::type;
     };
