@@ -634,7 +634,7 @@ namespace kaixo::tuple {
 
         template<class Functor, class Ty>
             requires structured_binding<decay_t<Ty>>
-        constexpr result<Functor> operator()(Functor&& functor, Ty&& tuple) const {
+        constexpr decltype(auto) operator()(Ty&& tuple, Functor&& functor) const {
             using types = binding_types_t<decay_t<Ty>>;
             return sequence<0, types::size>([&]<std::size_t ...Is>() -> decltype(auto) {
                 return std::forward<Functor>(functor)(get<Is>(std::forward<Ty>(tuple))...);
