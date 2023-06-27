@@ -116,7 +116,7 @@ namespace kaixo {
          * @tparam V type_trait value
          */
         template<class Ty, is_type_trait auto V>
-        concept require = bool(decltype(V)::template value<Ty>);
+        concept require = static_cast<bool>(decltype(V)::template value<Ty>);
 
         /**
          * Boolean and on 2 type traits
