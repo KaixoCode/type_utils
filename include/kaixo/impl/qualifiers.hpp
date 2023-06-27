@@ -244,4 +244,64 @@ namespace kaixo {
 
     template<class Ty>
     using decay_t = typename decay<Ty>::type;
+
+    template<class From>
+    struct copy_const_from {
+        template<class To>
+        using type = copy_const_t<To, From>;
+    };
+
+    template<class From>
+    struct copy_volatile_from {
+        template<class To>
+        using type = copy_volatile_t<To, From>;
+    };
+
+    template<class From>
+    struct copy_cv_from {
+        template<class To>
+        using type = copy_cv_t<To, From>;
+    };
+
+    template<class From>
+    struct copy_ref_from {
+        template<class To>
+        using type = copy_ref_t<To, From>;
+    };
+
+    template<class From>
+    struct copy_cvref_from {
+        template<class To>
+        using type = copy_cvref_t<To, From>;
+    };
+
+    template<class From>
+    struct add_const_from {
+        template<class To>
+        using type = add_const_t<To, From>;
+    };
+
+    template<class From>
+    struct add_volatile_from {
+        template<class To>
+        using type = add_volatile_t<To, From>;
+    };
+
+    template<class From>
+    struct add_cv_from {
+        template<class To>
+        using type = add_cv_t<To, From>;
+    };
+
+    template<class From>
+    struct add_ref_from {
+        template<class To>
+        using type = add_ref_t<To, From>;
+    };
+
+    template<class From>
+    struct add_cvref_from {
+        template<class To>
+        using type = add_cvref_t<To, From>;
+    };
 }
