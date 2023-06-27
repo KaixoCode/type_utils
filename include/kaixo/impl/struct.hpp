@@ -67,19 +67,18 @@ namespace kaixo {
      * @tparam Ty type
      * @tparam N number of elements in binding
      */
-    template<structured_binding Ty, std::size_t N>
+    template<class Ty, std::size_t N>
     struct binding_types_impl {
         using type = info<Ty>;
     };
 
-    template<structured_binding Ty>
+    template<class Ty>
     struct binding_types_impl<Ty, 0> {
         using type = info<Ty>;
     };
 
 #define KAIXO_STRUCT_MEMBERS_M(c, V, P)            \
-    template<structured_binding Ty>                    \
-        requires (binding_size_v<Ty> == c)         \
+    template<class Ty>                             \
     struct binding_types_impl<Ty, c> {             \
         using type = typename decltype([](Ty& ty) {\
             auto& [V] = ty;                        \
@@ -87,35 +86,33 @@ namespace kaixo {
         }(std::declval<Ty&>()));                   \
     };
 
-    template<structured_binding Ty, std::size_t N>
+    template<std::size_t N>
     struct binding_get_member {};
 
-    template<structured_binding Ty>
-    struct binding_get_member<Ty, 0> {};
-
-#define KAIXO_STRUCT_GET_MEMBERS_M(c, V, P)                                       \
-    template<structured_binding Ty>                                               \
-        requires (binding_size_v<Ty> == c)                                        \
-    struct binding_get_member<Ty, c> {                                            \
-        template<std::size_t I, class Arg>                                        \
-            requires (I < c && std::same_as<std::decay_t<Arg>, Ty>                \
-                 && !std::is_volatile_v<std::remove_reference_t<Arg>>)            \
-        constexpr static decltype(auto) get(Arg&& arg) {                          \
-            using type = binding_types<Ty, c>::type::template element<I>;         \
-            auto& [V] = arg;                                                      \
-            if constexpr (type::is_lvalue_reference::value) {                     \
-                return std::get<I>(std::forward_as_tuple(V));                     \
-            } else {                                                              \
-                return std::move(std::get<I>(std::forward_as_tuple(V)));          \
-            }                                                                     \
-        }                                                                         \
-        template<std::size_t I, class Arg>                                        \
-            requires (I < c && std::same_as<std::decay_t<Arg>, Ty>                \
-                 && !std::is_volatile_v<std::remove_reference_t<Arg>>)            \
-        constexpr static decltype(auto) get(Arg& arg) {                           \
-            auto& [V] = arg;                                                      \
-            return std::get<I>(std::forward_as_tuple(V));                         \
-        }                                                                         \
+#define KAIXO_STRUCT_GET_MEMBERS_M(c, V, P)                                             \
+    template<>                                                                          \
+    struct binding_get_member<c> {                                                      \
+        template<class Arg>                                                             \
+        constexpr static decltype(auto) test(Arg&& arg) {                               \
+            auto& [V] = arg;                                                            \
+        }                                                                               \
+        template<std::size_t I, class Arg>                                              \
+            requires (I < c && !std::is_volatile_v<std::remove_reference_t<Arg>>)       \
+        constexpr static decltype(auto) get(Arg&& arg) {                                \
+            using type = binding_types_t<std::decay_t<Arg>>::template element<I>::type; \
+            auto& [V] = arg;                                                            \
+            if constexpr (std::is_lvalue_reference_v<type>) {                           \
+                return std::get<I>(std::forward_as_tuple(V));                           \
+            } else {                                                                    \
+                return std::move(std::get<I>(std::forward_as_tuple(V)));                \
+            }                                                                           \
+        }                                                                               \
+        template<std::size_t I, class Arg>                                              \
+            requires (I < c && !std::is_volatile_v<std::remove_reference_t<Arg>>)       \
+        constexpr static decltype(auto) get(Arg& arg) {                                 \
+            auto& [V] = arg;                                                            \
+            return std::get<I>(std::forward_as_tuple(V));                               \
+        }                                                                               \
     };
 
 #define KAIXO_EMPTY
@@ -263,13 +260,12 @@ namespace kaixo {
 
 #define KAIXO_DECLTYPE2(x) decltype(x)
     KAIXO_MAKE_UNIQUE(KAIXO_STRUCT_GET_MEMBERS_M, 99, KAIXO_DECLTYPE2);
-}
 
-namespace std {
     template<std::size_t I, class Ty>
-        requires (kaixo::structured_binding<decay_t<Ty>> && !is_volatile_v<remove_reference_t<Ty>>)
-    constexpr decltype(auto) get(Ty&& value) {
-        using type = decay_t<Ty>;
-        return kaixo::binding_get_member<type, kaixo::binding_size_v<type>>::get<I>(std::forward<Ty>(value));
+        requires structured_binding<std::decay_t<Ty>>
+    constexpr auto&& get_binding_element(Ty&& value) {
+        using type = std::decay_t<Ty>;
+        using get_member = binding_get_member<binding_size_v<type>>;
+        return get_member::template get<I>(std::forward<Ty>(value));
     }
 }
