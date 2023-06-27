@@ -353,12 +353,13 @@ namespace kaixo::tuple {
         template<class Self, class Ty>
             requires structured_binding<decay_t<Ty>>
         constexpr auto operator()(this Self&& self, Ty&& tuple) {
-            using tuple_type = binding_types_t<decay_t<Ty>>
+            using types = binding_types_t<decay_t<Ty>>;
+            using tuple_type = types
                 ::template remove_indices<as_array<Is...>>
                 ::template transform<typename _tpl_ref<Ty&&>::type>
                 ::template as<forwarding_tuple>;
 
-            return iterate<as_array<Is...>>([&]<std::size_t ...Ns>{
+            return iterate<generate_indices_v<0, types::size, Is...>>([&]<std::size_t ...Ns>{
                 return tuple_type(get<Ns>(std::forward<Ty>(tuple))...);
             });
         }
@@ -649,6 +650,7 @@ namespace kaixo::tuple {
     template<class ...Tys> constexpr auto remove_raw = remove_raw_impl<Tys...>{};
     template<class ...Tys> constexpr auto keep = keep_impl<Tys...>{};
     template<class ...Tys> constexpr auto keep_raw = keep_raw_impl<Tys...>{};
+    template<std::size_t ...Is> constexpr auto remove_indices = remove_indices_impl<Is...>{};
     template<std::size_t ...Is> constexpr auto keep_indices = keep_indices_impl<Is...>{};
     constexpr auto append = append_impl{};
     constexpr auto prepend = prepend_impl{};
