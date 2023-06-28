@@ -46,18 +46,19 @@ namespace kaixo {
 
         template<class Self>
         struct view_interface {
-            //using decayed_tuple = typename Self::types
-            //    ::template when<is_rvalue_reference>
-            //        ::template transform<remove_reference_t>
-            //    ::template transform<grab::decayed_tuple>
-            //    ::template as<std::tuple>;
-            //
-            //constexpr operator decayed_tuple() {
-            //    return sequence<Self::types::size>([&]<std::size_t ...Is>{
-            //        auto& self = *static_cast<Self*>(this);
-            //        return decayed_tuple{ self.template get<Is>()... };
-            //    });
-            //}
+            
+            constexpr auto as_tuple() {
+                using decayed_tuple = typename Self::types
+                    ::template when<is_rvalue_reference>
+                        ::template transform<remove_reference_t>
+                    ::template transform<grab::decayed_tuple>
+                    ::template as<std::tuple>;
+
+                return sequence<Self::types::size>([&]<std::size_t ...Is>{
+                    auto& self = *static_cast<Self*>(this);
+                    return decayed_tuple{ self.template get<Is>()... };
+                });
+            }
         };
 
         template<class Ty>
@@ -251,6 +252,7 @@ namespace kaixo::tuples {
 
     template<std::size_t I>
     constexpr auto take = _take_fun<I>{};
+    constexpr auto head = take<1>;
 
     // =======================================================
 
@@ -288,6 +290,7 @@ namespace kaixo::tuples {
 
     template<std::size_t I>
     constexpr auto drop = _drop_fun<I>{};
+    constexpr auto tail = drop<1>;
 
     // =======================================================
 
@@ -362,10 +365,12 @@ namespace kaixo::tuples {
 
     template<std::size_t I>
     constexpr auto drop_last = _drop_last_fun<I>{};
+    constexpr auto init = drop_last<1>;
     
     // =======================================================
 
     template<view Tpl, std::size_t ...Is>
+        requires ((Is < all_t<Tpl>::types::size) && ...)
     struct erase_view : view_interface<erase_view<Tpl, Is...>> {
         using types = decay_t<Tpl>::types::template remove_indices<as_array<Is...>>;
 
@@ -387,7 +392,8 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>)
+                && ((Is < all_t<Tpl>::types::size) && ...))
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (all_t<Tpl>::types
                 ::template remove_indices<as_array<Is...>>::size == 0) {
@@ -404,6 +410,7 @@ namespace kaixo::tuples {
     // =======================================================
 
     template<std::size_t I, view Tpl, class ...Args>
+        requires (I <= all_t<Tpl>::types::size)
     struct insert_view : view_interface<insert_view<I, Tpl, Args...>> {
         using types = decay_t<Tpl>::types::template insert<I, info<Args...>>;
 
@@ -432,7 +439,8 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl, class ...Args>
-            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>) && sizeof...(Args) != 0)
+            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>) 
+                && sizeof...(Args) != 0 && I <= all_t<Tpl>::types::size)
         constexpr auto operator()(Tpl&& val, Args&& ...args) const {
             return insert_view<I, all_t<Tpl>, Args...>{
                 std::forward<Tpl>(val), std::forward_as_tuple(std::forward<Args>(args)...)
@@ -451,6 +459,7 @@ namespace kaixo::tuples {
     // =======================================================
 
     template<std::size_t I, view Tpl, class Arg>
+        requires (I < all_t<Tpl>::types::size)
     struct swap_view : view_interface<swap_view<I, Tpl, Arg>> {
         using types = decay_t<Tpl>::types::template swap<I, Arg>;
 
@@ -479,7 +488,8 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl, class Arg>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>)
+                && I < all_t<Tpl>::types::size)
         constexpr auto operator()(Tpl&& val, Arg&& arg) const {
             return swap_view<I, all_t<Tpl>, Arg>{
                 std::forward<Tpl>(val), std::forward<Arg>(arg)
@@ -519,7 +529,8 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>) 
+                && A <= decay_t<Tpl>::types::size && B <= decay_t<Tpl>::types::size && A < B)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (A == B) {
                 return empty_view{};
@@ -532,322 +543,442 @@ namespace kaixo::tuples {
     template<std::size_t A, std::size_t B>
     constexpr auto sub = _sub_fun<A, B>{};
     
-    /*
+    // =======================================================
 
-    template<class ...Args> 
-    struct remove_impl {
-        using tuple_modifier = int;
+    template<view Tpl, class ...Args>
+    struct remove_view : view_interface<remove_view<Tpl, Args...>> {
+        using types = decay_t<Tpl>::types::template remove<typename info<Args...>::decay>;
 
-        template<class Self, class Ty>
-            requires structured_binding<decay_t<Ty>>
-        constexpr auto operator()(this Self&& self, Ty&& tuple) {
-            using types = binding_types_t<decay_t<Ty>>;
-            constexpr auto Indices = types::decay
+        Tpl tpl;
+
+        template<class T> requires constructible<Tpl, T&&>
+        constexpr remove_view(T&& v) : tpl(std::forward<T>(v)) {}
+
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            constexpr auto Indices = decay_t<Tpl>::types::decay
+                ::template indices_except<typename info<Args...>::decay>;
+            return tuples::get<Indices[N]>(std::forward<Self>(self).tpl);
+        }
+    };
+
+    template<class ...Args>
+    struct _remove_fun {
+        using tuple_pipe = int;
+
+        template<class Tpl>
+            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+        constexpr auto operator()(Tpl&& val) const {
+            if constexpr (all_t<Tpl>::types::decay::template remove<typename info<Args...>::decay>::size == 0) {
+                return empty_view{};
+            } else {
+                return remove_view<all_t<Tpl>, Args...>{ std::forward<Tpl>(val) };
+            }
+        }
+    };
+
+    template<class ...Args>
+    constexpr auto remove = _remove_fun<Args...>{};
+    
+    // =======================================================
+
+    template<view Tpl, class ...Args>
+    struct remove_raw_view : view_interface<remove_raw_view<Tpl, Args...>> {
+        using types = decay_t<Tpl>::types::template remove<info<Args...>>;
+
+        Tpl tpl;
+
+        template<class T> requires constructible<Tpl, T&&>
+        constexpr remove_raw_view(T&& v) : tpl(std::forward<T>(v)) {}
+
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            constexpr auto Indices = decay_t<Tpl>::types
                 ::template indices_except<info<Args...>>;
-            using tuple_type = types
-                ::template keep_indices<Indices>
-                ::template transform<typename _tpl_ref<Ty&&>::type>
-                ::template as<forwarding_tuple>;
-
-            return iterate<Indices>([&]<std::size_t ...Is>{
-                return tuple_type(get<Is>(std::forward<Ty>(tuple))...);
-            });
+            return tuples::get<Indices[N]>(std::forward<Self>(self).tpl);
         }
     };
 
-    template<class ...Args> 
-    struct remove_raw_impl {
-        using tuple_modifier = int;
+    template<class ...Args>
+    struct _remove_raw_fun {
+        using tuple_pipe = int;
 
-        template<class Self, class Ty>
-            requires structured_binding<decay_t<Ty>>
-        constexpr auto operator()(this Self&& self, Ty&& tuple) {
-            using types = binding_types_t<decay_t<Ty>>;
-            constexpr auto Indices = types
-                ::template indices_except<info<Args...>>;
-            using tuple_type = types
-                ::template keep_indices<Indices>
-                ::template transform<typename _tpl_ref<Ty&&>::type>
-                ::template as<forwarding_tuple>;
-
-            return iterate<Indices>([&]<std::size_t ...Is>{
-                return tuple_type(get<Is>(std::forward<Ty>(tuple))...);
-            });
+        template<class Tpl>
+            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+        constexpr auto operator()(Tpl&& val) const {
+            if constexpr (all_t<Tpl>::types::template remove<info<Args...>>::size == 0) {
+                return empty_view{};
+            } else {
+                return remove_raw_view<all_t<Tpl>, Args...>{ std::forward<Tpl>(val) };
+            }
         }
     };
 
-    template<class ...Args> 
-    struct keep_impl {
-        using tuple_modifier = int;
+    template<class ...Args>
+    constexpr auto remove_raw = _remove_raw_fun<Args...>{};
+    
+    // =======================================================
 
-        template<class Self, class Ty>
-            requires structured_binding<decay_t<Ty>>
-        constexpr auto operator()(this Self&& self, Ty&& tuple) {
-            using types = binding_types_t<decay_t<Ty>>;
-            constexpr auto Indices = types::decay
-                ::template indices_except<info<Args...>>;
-            using tuple_type = types
-                ::template remove_indices<Indices>
-                ::template transform<typename _tpl_ref<Ty&&>::type>
-                ::template as<forwarding_tuple>;
+    template<view Tpl, class ...Args>
+    struct keep_view : view_interface<keep_view<Tpl, Args...>> {
+        using types = decay_t<Tpl>::types::template keep<typename info<Args...>::decay>;
 
-            return iterate<Indices>([&]<std::size_t ...Is>{
-                return tuple_type(get<Is>(std::forward<Ty>(tuple))...);
-            });
+        Tpl tpl;
+
+        template<class T> requires constructible<Tpl, T&&>
+        constexpr keep_view(T&& v) : tpl(std::forward<T>(v)) {}
+
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            constexpr auto Indices = decay_t<Tpl>::types::decay
+                ::template indices<typename info<Args...>::decay>;
+            return tuples::get<Indices[N]>(std::forward<Self>(self).tpl);
         }
     };
 
-    template<std::size_t ...Is> 
-    struct keep_indices_impl {
-        using tuple_modifier = int;
+    template<class ...Args>
+    struct _keep_fun {
+        using tuple_pipe = int;
 
-        template<class Self, class Ty>
-            requires structured_binding<decay_t<Ty>>
-        constexpr auto operator()(this Self&& self, Ty&& tuple) {
-            using tuple_type = binding_types_t<decay_t<Ty>>
-                ::template keep_indices<as_array<Is...>>
-                ::template transform<typename _tpl_ref<Ty&&>::type>
-                ::template as<forwarding_tuple>;
-
-            return iterate<as_array<Is...>>([&]<std::size_t ...Ns>{
-                return tuple_type(get<Ns>(std::forward<Ty>(tuple))...);
-            });
+        template<class Tpl>
+            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+        constexpr auto operator()(Tpl&& val) const {
+            if constexpr (all_t<Tpl>::types::decay::template keep<typename info<Args...>::decay>::size == 0) {
+                return empty_view{};
+            } else {
+                return keep_view<all_t<Tpl>, Args...>{ std::forward<Tpl>(val) };
+            }
         }
     };
 
-    template<class ...Args> 
-    struct keep_raw_impl {
-        using tuple_modifier = int;
+    template<class ...Args>
+    constexpr auto keep = _keep_fun<Args...>{};
+    
+    // =======================================================
 
-        template<class Self, class Ty>
-            requires structured_binding<decay_t<Ty>>
-        constexpr auto operator()(this Self&& self, Ty&& tuple) {
-            using types = binding_types_t<decay_t<Ty>>;
-            constexpr auto Indices = types
-                ::template indices_except<info<Args...>>;
-            using tuple_type = types
-                ::template remove_indices<Indices>
-                ::template transform<typename _tpl_ref<Ty&&>::type>
-                ::template as<forwarding_tuple>;
+    template<view Tpl, class ...Args>
+    struct keep_raw_view : view_interface<keep_raw_view<Tpl, Args...>> {
+        using types = decay_t<Tpl>::types::template keep<info<Args...>>;
 
-            return iterate<Indices>([&]<std::size_t ...Is>{
-                return tuple_type(get<Is>(std::forward<Ty>(tuple))...);
-            });
+        Tpl tpl;
+
+        template<class T> requires constructible<Tpl, T&&>
+        constexpr keep_raw_view(T&& v) : tpl(std::forward<T>(v)) {}
+
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            constexpr auto Indices = decay_t<Tpl>::types
+                ::template indices<info<Args...>>;
+            return tuples::get<Indices[N]>(std::forward<Self>(self).tpl);
         }
     };
 
-    struct append_impl {
-        using tuple_modifier = int;
+    template<class ...Args>
+    struct _keep_raw_fun {
+        using tuple_pipe = int;
+
+        template<class Tpl>
+            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+        constexpr auto operator()(Tpl&& val) const {
+            if constexpr (all_t<Tpl>::types::template keep<info<Args...>>::size == 0) {
+                return empty_view{};
+            } else {
+                return keep_raw_view<all_t<Tpl>, Args...>{ std::forward<Tpl>(val) };
+            }
+        }
+    };
+
+    template<class ...Args>
+    constexpr auto keep_raw = _keep_raw_fun<Args...>{};
+    
+    // =======================================================
+
+    template<view Tpl, std::size_t ...Is>
+        requires ((Is < all_t<Tpl>::types::size) && ...)
+    struct keep_indices_view : view_interface<keep_indices_view<Tpl, Is...>> {
+        using types = decay_t<Tpl>::types::template keep_indices<as_array<Is...>>;
+
+        Tpl tpl;
+
+        template<class T> requires constructible<Tpl, T&&>
+        constexpr keep_indices_view(T&& v) : tpl(std::forward<T>(v)) {}
+
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            return tuples::get<as_array<Is...>[N]>(std::forward<Self>(self).tpl);
+        }
+    };
+
+    template<std::size_t ...Is>
+    struct _keep_indices_fun {
+        using tuple_pipe = int;
+
+        template<class Tpl>
+            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>)
+                && ((Is < all_t<Tpl>::types::size) && ...))
+        constexpr auto operator()(Tpl&& val) const {
+            if constexpr (sizeof...(Is) == 0) {
+                return empty_view{};
+            } else {
+                return keep_indices_view<all_t<Tpl>, Is...>{ std::forward<Tpl>(val) };
+            }
+        }
+    };
+
+    template<std::size_t ...Is>
+    constexpr auto keep_indices = _keep_indices_fun<Is...>{};
+    
+    // =======================================================
+
+    template<view Tpl, class ...Args>
+    struct append_view : view_interface<append_view<Tpl, Args...>> {
+        using types = decay_t<Tpl>::types::template append<info<Args...>>;
+
+        std::tuple<Args...> args;
+        Tpl tpl;
+
+        template<class T, class A> requires constructible<Tpl, T&&>
+        constexpr append_view(T&& v, A&& args)
+            : args(std::forward<A>(args)), tpl(std::forward<T>(v)) {}
+
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            if constexpr (N < decay_t<Tpl>::types::size) {
+                return tuples::get<N>(std::forward<Self>(self).tpl);
+            } else {
+                return tuples::get<N - decay_t<Tpl>::types::size>(std::forward<Self>(self).args);
+            }
+        }
+    };
+
+    struct _append_fun {
+        using tuple_pipe = int;
+
+        template<class Tpl, class ...Args>
+            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>) && sizeof...(Args) != 0)
+        constexpr auto operator()(Tpl&& val, Args&& ...args) const {
+            return append_view<all_t<Tpl>, Args...>{
+                std::forward<Tpl>(val), std::forward_as_tuple(std::forward<Args>(args)...)
+            };
+        }
 
         template<class ...Args>
-        struct result {
-            using tuple_modifier = int;
-            std::tuple<Args...> _data{};
-
-            template<class Self, class Ty>
-                requires structured_binding<decay_t<Ty>>
-            constexpr auto operator()(this Self&& self, Ty&& tuple) {
-                using types = binding_types_t<decay_t<Ty>>;
-                using head = types
-                    ::template transform<typename _tpl_ref<Ty&&>::type>;
-                using middle = info<Args...>;
-                using tuple_type = concat_t<head, middle>
-                    ::template as<forwarding_tuple>;
-
-                return[&]<
-                    std::size_t ...Is,
-                    std::size_t ...Qs> (
-                        std::index_sequence<Is...>,
-                        std::index_sequence<Qs...>) {
-                    return tuple_type(
-                        get<Is>(std::forward<Ty>(tuple))...,
-                        get<Qs>(std::forward<Self>(self)._data)...);
-                }(
-                    std::make_index_sequence<types::size>{},
-                    std::index_sequence_for<Args...>{});
-            }
-        };
-
-        template<class ...Tys>
-        constexpr result<Tys...> operator()(Tys&&...args) const {
-            return result<Tys...>{._data{ std::forward<Tys>(args)... } };
-        }
-
-        template<class Ty, class ...Tys>
-            requires (structured_binding<decay_t<Ty>> && sizeof...(Tys) > 0)
-        constexpr auto operator()(Ty&& tuple, Tys&&...args) const {
-            using types = binding_types_t<decay_t<Ty>>;
-            using head = types
-                ::template transform<typename _tpl_ref<Ty&&>::type>;
-            using middle = info<Tys...>;
-            using tuple_type = concat_t<head, middle>
-                ::template as<forwarding_tuple>;
-
-            return[&]<std::size_t ...Is> (std::index_sequence<Is...>) {
-                return tuple_type(
-                    get<Is>(std::forward<Ty>(tuple))...,
-                    std::forward<Tys>(args)...);
-            }(std::make_index_sequence<types::size>{});
+        constexpr auto operator()(Args&& ...args) const {
+            return _tuple_closure<_append_fun, Args...>(std::forward<Args>(args)...);
         }
     };
 
-    struct prepend_impl {
-        using tuple_modifier = int;
+    constexpr auto append = _append_fun{};
+    
+    // =======================================================
+
+    template<view Tpl, class ...Args>
+    struct prepend_view : view_interface<prepend_view<Tpl, Args...>> {
+        using types = decay_t<Tpl>::types::template prepend<info<Args...>>;
+
+        std::tuple<Args...> args;
+        Tpl tpl;
+
+        template<class T, class A> requires constructible<Tpl, T&&>
+        constexpr prepend_view(T&& v, A&& args)
+            : args(std::forward<A>(args)), tpl(std::forward<T>(v)) {}
+
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            if constexpr (N < sizeof...(Args)) {
+                return tuples::get<N>(std::forward<Self>(self).args);
+            } else {
+                return tuples::get<N - sizeof...(Args)>(std::forward<Self>(self).tpl);
+            }
+        }
+    };
+
+    struct _prepend_fun {
+        using tuple_pipe = int;
+
+        template<class Tpl, class ...Args>
+            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>) && sizeof...(Args) != 0)
+        constexpr auto operator()(Tpl&& val, Args&& ...args) const {
+            return prepend_view<all_t<Tpl>, Args...>{
+                std::forward<Tpl>(val), std::forward_as_tuple(std::forward<Args>(args)...)
+            };
+        }
 
         template<class ...Args>
-        struct result {
-            using tuple_modifier = int;
-            std::tuple<Args...> _data{};
+        constexpr auto operator()(Args&& ...args) const {
+            return _tuple_closure<_prepend_fun, Args...>(std::forward<Args>(args)...);
+        }
+    };
 
-            template<class Self, class Ty>
-                requires structured_binding<decay_t<Ty>>
-            constexpr auto operator()(this Self&& self, Ty&& tuple) {
-                using types = binding_types_t<decay_t<Ty>>;
-                using middle = info<Args...>;
-                using tail = types
-                    ::template transform<typename _tpl_ref<Ty&&>::type>;
-                using tuple_type = concat_t<middle, tail>
-                    ::template as<forwarding_tuple>;
+    constexpr auto prepend = _prepend_fun{};
+    
+    // =======================================================
 
-                return[&]<
-                    std::size_t ...Is,
-                    std::size_t ...Qs> (
-                        std::index_sequence<Is...>,
-                        std::index_sequence<Qs...>) {
-                    return tuple_type(
-                        get<Qs>(std::forward<Self>(self)._data)...,
-                        get<Is>(std::forward<Ty>(tuple))...);
-                }(
-                    std::make_index_sequence<types::size>{},
-                    std::index_sequence_for<Args...>{});
+    template<view Tpl>
+    struct unique_view : view_interface<unique_view<Tpl>> {
+        using types = decay_t<Tpl>::types::unique;
+
+        Tpl tpl;
+
+        template<class T> requires constructible<Tpl, T&&>
+        constexpr unique_view(T&& v) : tpl(std::forward<T>(v)) {}
+
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            constexpr auto Indices = first_indices_v<typename decay_t<Tpl>::types>;
+            return tuples::get<Indices[N]>(std::forward<Self>(self).tpl);
+        }
+    };
+
+    struct _unique_fun {
+        using tuple_pipe = int;
+
+        template<class Tpl>
+            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+        constexpr auto operator()(Tpl&& val) const {
+            return unique_view<all_t<Tpl>>{ std::forward<Tpl>(val) };
+        }
+    };
+
+    constexpr auto unique = _unique_fun{};
+    
+    // =======================================================
+
+    template<view Tpl>
+    struct reverse_view : view_interface<reverse_view<Tpl>> {
+        using types = decay_t<Tpl>::types::reverse;
+
+        Tpl tpl;
+
+        template<class T> requires constructible<Tpl, T&&>
+        constexpr reverse_view(T&& v) : tpl(std::forward<T>(v)) {}
+
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            return tuples::get<types::size - N - 1>(std::forward<Self>(self).tpl);
+        }
+    };
+
+    struct _reverse_fun {
+        using tuple_pipe = int;
+
+        template<class Tpl>
+            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+        constexpr auto operator()(Tpl&& val) const {
+            return reverse_view<all_t<Tpl>>{ std::forward<Tpl>(val) };
+        }
+    };
+
+    constexpr auto reverse = _reverse_fun{};
+    
+    // =======================================================
+
+    template<auto Filter, view Tpl>
+    struct filter_view : view_interface<filter_view<Filter, Tpl>> {
+        using types = decay_t<Tpl>::types::template filter<Filter>;
+
+        Tpl tpl;
+
+        template<class T> requires constructible<Tpl, T&&>
+        constexpr filter_view(T&& v) : tpl(std::forward<T>(v)) {}
+
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            return tuples::get<types::size - N - 1>(std::forward<Self>(self).tpl);
+        }
+    };
+
+    template<auto Filter>
+    struct _filter_fun {
+        using tuple_pipe = int;
+
+        template<class Tpl>
+            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+        constexpr auto operator()(Tpl&& val) const {
+            if constexpr (all_t<Tpl>::types::template filter<Filter>::size == 0) {
+                return empty_view{};
+            } else {
+                return filter_view<Filter, all_t<Tpl>>{ std::forward<Tpl>(val) };
             }
-        };
-
-        template<class ...Tys>
-        constexpr result<Tys...> operator()(Tys&&...args) const {
-            return result<Tys...>{._data{ std::forward<Tys>(args)... } };
-        }
-
-        template<class Ty, class ...Tys>
-            requires (structured_binding<decay_t<Ty>> && sizeof...(Tys) > 0)
-        constexpr auto operator()(Ty&& tuple, Tys&&...args) const {
-            using types = binding_types_t<decay_t<Ty>>;
-            using middle = info<Tys...>;
-            using tail = types
-                ::template transform<typename _tpl_ref<Ty&&>::type>;
-            using tuple_type = concat_t<middle, tail>
-                ::template as<forwarding_tuple>;
-
-            return[&]<std::size_t ...Is> (std::index_sequence<Is...>) {
-                return tuple_type(
-                    std::forward<Tys>(args)...,
-                    get<Is>(std::forward<Ty>(tuple))...);
-            }(std::make_index_sequence<types::size>{});
         }
     };
 
-    struct unique_impl {
-        using tuple_modifier = int;
+    template<auto Filter>
+    constexpr auto filter = _filter_fun<Filter>{};
+    
+    // =======================================================
 
-        template<class Self, class Ty>
-            requires structured_binding<decay_t<Ty>>
-        constexpr auto operator()(this Self&& self, Ty&& tuple) {
-            using types = binding_types_t<decay_t<Ty>>;
-            using tuple_type = types::unique
-                ::template transform<typename _tpl_ref<Ty&&>::type>
-                ::template as<forwarding_tuple>;
-
-            return iterate<first_indices_v<typename types::decay>>([&]<std::size_t ...Is>{
-                return tuple_type(get<Is>(std::forward<Ty>(tuple))...);
-            });
+    template<view Tpl, class Arg>
+    struct transform_view : view_interface<transform_view<Tpl, Arg>> {
+        using types = decay_t<Tpl>::types
+            ::template transform<typename partial<std::invoke_result_t, Arg>::type>;
+    
+        Arg arg;
+        Tpl tpl;
+    
+        template<class T, class A> requires constructible<Tpl, T&&>
+        constexpr transform_view(T&& v, A&& arg)
+            : arg(std::forward<A>(arg)), tpl(std::forward<T>(v)) {}
+    
+        template<std::size_t N, class Self>
+            requires (N < types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            return std::forward<Self>(self).arg(tuples::get<N>(std::forward<Self>(self).tpl));
         }
     };
-
-    struct reverse_impl {
-        using tuple_modifier = int;
-
-        template<class Self, class Ty>
-            requires structured_binding<decay_t<Ty>>
-        constexpr auto operator()(this Self&& self, Ty&& tuple) {
-            using types = binding_types_t<decay_t<Ty>>;
-            using tuple_type = types::reverse
-                ::template transform<typename _tpl_ref<Ty&&>::type>
-                ::template as<forwarding_tuple>;
-
-            return reverse_sequence<0, types::size>([&]<std::size_t ...Is>{
-                return tuple_type(get<Is>(std::forward<Ty>(tuple))...);
-            });
+    
+    struct _transform_fun {
+        using tuple_pipe = int;
+    
+        template<class Tpl, class Arg>
+            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>) 
+                && all_t<Tpl>::types::template filter<!can_invoke<Arg>>::size == 0)
+        constexpr auto operator()(Tpl&& val, Arg&& arg) const {
+            return transform_view<all_t<Tpl>, Arg>{
+                std::forward<Tpl>(val), std::forward<Arg>(arg)
+            };
+        }
+    
+        template<class Arg>
+        constexpr auto operator()(Arg&& arg) const {
+            return _tuple_closure<_transform_fun, Arg>(std::forward<Arg>(arg));
         }
     };
+    
+    constexpr auto transform = _transform_fun{};
+    
+    template<std::size_t I>
+    constexpr auto elements = transform([]<class Ty>(Ty&& arg) -> decltype(auto) { return get<I>(std::forward<Ty>(arg)); });
+    
+    constexpr auto keys = elements<0>;
+    constexpr auto values = elements<1>;
 
-    template<auto Filter> 
-    struct filter_impl {
-        using tuple_modifier = int;
+    // =======================================================
 
-        template<class Self, class Ty>
-            requires structured_binding<decay_t<Ty>>
-        constexpr auto operator()(this Self&& self, Ty&& tuple) {
-            using types = binding_types_t<decay_t<Ty>>;
-            constexpr auto Indices = types
-                ::template indices_filter<Filter>;
-            using tuple_type = types
-                ::template keep_indices<Indices>
-                ::template transform<typename _tpl_ref<Ty&&>::type>
-                ::template as<forwarding_tuple>;
-
-            return iterate<Indices>([&]<std::size_t ...Is>{
-                return tuple_type(get<Is>(std::forward<Ty>(tuple))...);
-            });
-        }
-    };
-
-    struct call_impl {
-        template<class Functor> 
-        struct result {
-            using tuple_modifier = int;
-            Functor _functor;
-
-            template<class Self, class Ty>
-                requires structured_binding<decay_t<Ty>>
-            constexpr auto operator()(this Self&& self, Ty&& tuple) {
-                using types = binding_types_t<decay_t<Ty>>;
-                return sequence<0, types::size>([&]<std::size_t ...Is>() -> decltype(auto) {
-                    return std::forward<Functor>(std::forward<Self>(self)._functor)(get<Is>(std::forward<Ty>(tuple))...);
-                });
-            }
-        };
-
-        template<class Functor>
-        constexpr result<Functor> operator()(Functor&& functor) const {
-            return result<Functor>{ std::forward<Functor>(functor) };
-        }
-
+    struct _call_fun {
         template<class Functor, class Ty>
-            requires structured_binding<decay_t<Ty>>
+            requires (structured_binding<decay_t<Ty>> || view<Ty>)
         constexpr decltype(auto) operator()(Ty&& tuple, Functor&& functor) const {
-            using types = binding_types_t<decay_t<Ty>>;
+            using types = all_t<Ty>::types;
             return sequence<0, types::size>([&]<std::size_t ...Is>() -> decltype(auto) {
                 return std::forward<Functor>(functor)(get<Is>(std::forward<Ty>(tuple))...);
             });
         }
     };
 
-    template<std::size_t I> constexpr auto drop_last = drop_last_impl<I>{};
-    template<std::size_t I> constexpr auto last = last_impl<I>{};
-    template<std::size_t I> constexpr auto swap = swap_impl<I>{};
-    template<std::size_t A, std::size_t B> constexpr auto sub = sub_impl<A, B>{};
-    template<class ...Tys> constexpr auto remove = remove_impl<Tys...>{};
-    template<class ...Tys> constexpr auto remove_raw = remove_raw_impl<Tys...>{};
-    template<class ...Tys> constexpr auto keep = keep_impl<Tys...>{};
-    template<class ...Tys> constexpr auto keep_raw = keep_raw_impl<Tys...>{};
-    template<std::size_t ...Is> constexpr auto remove_indices = remove_indices_impl<Is...>{};
-    template<std::size_t ...Is> constexpr auto keep_indices = keep_indices_impl<Is...>{};
-    constexpr auto append = append_impl{};
-    constexpr auto prepend = prepend_impl{};
-    constexpr auto unique = unique_impl{};
-    constexpr auto reverse = reverse_impl{};
-    template<auto Filter> constexpr auto filter = filter_impl<Filter>{};
-    constexpr auto call = call_impl{};
+    constexpr _call_fun call{};
+
+    // =======================================================
 
     template<class Ty>
     using _type_ref_impl = binding_types_t<decay_t<Ty>>
@@ -862,14 +993,14 @@ namespace kaixo::tuples {
         auto _one = [&]<std::size_t I>(value_t<I>){
             using tuple_type = typename zipped
                 ::template element<I>
-                ::template as<forwarding_tuple>;
+                ::template as<std::tuple>;
 
             return tuple_type(get<I>(std::forward<Tys>(tuples))...);
         };
 
         using tuple_type = zipped
-            ::template transform<typename move_tparams<forwarding_tuple>::type>
-            ::template as<forwarding_tuple>;
+            ::template transform<typename move_tparams<std::tuple>::type>
+            ::template as<std::tuple>;
 
         return sequence<min_size>([&]<std::size_t ...Is> {
             return tuple_type(_one(value_t<Is>{})...);
@@ -887,7 +1018,7 @@ namespace kaixo::tuples {
     {
         using types = info<binding_types_t<decay_t<Tys>>...>;
         using tuple_type = concat_t<_type_ref_impl<Tys>...>
-            ::template as<forwarding_tuple>;
+            ::template as<std::tuple>;
         template_pack<Tys...> _tuples{ tuples... };
 
         return sequence<sizeof...(Tys)>([&]<std::size_t ...Is>() {
@@ -918,19 +1049,18 @@ namespace kaixo::tuples {
 
                 using tuple_type = typename cartesian_type
                     ::template element<I>
-                    ::template as<forwarding_tuple>;
+                    ::template as<std::tuple>;
 
                 return tuple_type(get<_indices[Is]>(get<Is>(_tuples))...);
             });
         };
 
         using tuple_type = cartesian_type
-            ::template transform<typename move_tparams<forwarding_tuple>::type>
-            ::template as<forwarding_tuple>;
+            ::template transform<typename move_tparams<std::tuple>::type>
+            ::template as<std::tuple>;
 
         return sequence<(binding_size_v<decay_t<Tys>> * ... * 1)>([&]<std::size_t ...Is>{
             return tuple_type(eval_at(value_t<Is>{})...);
         });
     };
-    */
 }

@@ -818,13 +818,13 @@ namespace kaixo {
     template<class L>
     struct filter_object : wrap_filter_object<L>::type {
         template<std::size_t I, class Ty> consteval bool call() {
-            if constexpr (_call_type6<L, I, Ty>) return this->value;
+            if constexpr (_call_type5<L, I, Ty>) return this->value == Ty::value;
+            else if constexpr (_call_type6<L, I, Ty>) return this->value;
             else if constexpr (_call_type0<L, I, Ty>) return this->value.template operator() < Ty > ();
             else if constexpr (_call_type1<L, I, Ty>) return this->value.template operator() < I, Ty > ();
             else if constexpr (_call_type2<L, I, Ty>) return this->value.template operator() < I > ();
             else if constexpr (_call_type3<L, I, Ty>) return true;
             else if constexpr (_call_type4<L, I, Ty>) return L::template value<Ty>;
-            else if constexpr (_call_type5<L, I, Ty>) return this->value == Ty::value;
             else return false; // Otherwise always return false
         }
     };

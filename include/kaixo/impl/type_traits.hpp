@@ -234,6 +234,12 @@ namespace kaixo {
         template<class ...Args> constexpr auto is_nothrow_constructible = type_trait<typename type_trait_partial_last<std::is_nothrow_constructible, Args...>::type>{};
         template<class ...Args> constexpr auto is_invocable = type_trait<typename type_trait_partial_last<std::is_invocable, Args...>::type>{};
         template<class ...Args> constexpr auto is_nothrow_invocable = type_trait<typename type_trait_partial_last<std::is_nothrow_invocable, Args...>::type>{};
+        
+        template<class Other> constexpr auto can_construct = type_trait<typename type_trait_partial_first<std::is_constructible, Other>::type>{};
+        template<class Other> constexpr auto can_trivially_construct = type_trait<typename type_trait_partial_first<std::is_trivially_constructible, Other>::type>{};
+        template<class Other> constexpr auto can_nothrow_construct = type_trait<typename type_trait_partial_first<std::is_nothrow_constructible, Other>::type>{};
+        template<class Other> constexpr auto can_invoke = type_trait<typename type_trait_partial_first<std::is_invocable, Other>::type>{};
+        template<class Other> constexpr auto can_nothrow_invoke = type_trait<typename type_trait_partial_first<std::is_nothrow_invocable, Other>::type>{};
 
         template<template<class ...> class Ty>
         struct is_specialization_impl {
