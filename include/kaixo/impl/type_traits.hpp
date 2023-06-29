@@ -95,8 +95,13 @@ namespace kaixo {
          */
         template<template<class ...> class Trait>
         struct type_trait {
+            using is_value_filter = int;
+
             template<class ...Tys>
             constexpr static bool value = Trait<Tys...>::value;
+
+            template<class ...Tys>
+            consteval bool evaluate() const { return Trait<Tys...>::value; }
         };
 
         template<class> struct is_type_trait_impl : std::false_type {};
@@ -115,8 +120,8 @@ namespace kaixo {
          * @tparam Ty type
          * @tparam V type_trait value
          */
-        template<class Ty, is_type_trait auto V>
-        concept require = static_cast<bool>(decltype(V)::template value<Ty>);
+        template<class Ty, is_value_filter auto V>
+        concept require = static_cast<bool>(V.template evaluate<Ty>());
 
         /**
          * Boolean and on 2 type traits

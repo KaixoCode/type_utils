@@ -10,6 +10,7 @@
 #include <tuple>
 #include "string_literal.hpp"
 #include "sequence.hpp"
+#include "value_filter.hpp"
 
 /**
  * Some general helpers and pre-definitions.
@@ -368,27 +369,43 @@ namespace kaixo {
         else return string_literal<name.size() + 1>{ name };
     }();
 
+    template<class Ty>
+    using sizeof_impl = std::integral_constant<std::size_t, sizeof(Ty)>;
+
     /**
      * Basically sizeof(Ty), but special case for
      * void and functions, as they normally give errors.
      */
-    template<class Ty>
-    constexpr std::size_t sizeof_v = [] {
-        if constexpr (std::is_void_v<Ty>) return 0;
-        else if constexpr (std::is_function_v<Ty>) return 0;
-        else if constexpr (std::is_array_v<Ty> && std::extent_v<Ty> == 0) return 0;
-        else return sizeof(Ty);
+    template<class ...Ty>
+        requires (sizeof...(Ty) <= 1)
+    constexpr auto sizeof_v = [] {
+        if constexpr (sizeof...(Ty) == 0) return value_filter<sizeof_impl>{};
+        else {
+            using type = std::tuple_element_t<0, std::tuple<Ty...>>;
+            if constexpr (std::is_void_v<type>) return 0;
+            else if constexpr (std::is_function_v<type>) return 0;
+            else if constexpr (std::is_array_v<type> && std::extent_v<type> == 0) return 0;
+            else return sizeof(type);
+        }
     }();
+
+    template<class Ty>
+    using alignof_impl = std::integral_constant<std::size_t, std::alignment_of_v<Ty>>;
 
     /**
      * Basically alignof(Ty), but special case for
      * void and functions, as they normally give errors.
      */
-    template<class Ty>
-    constexpr std::size_t alignof_v = [] {
-        if constexpr (std::is_void_v<Ty>) return 0;
-        else if constexpr (std::is_function_v<Ty>) return 0;
-        else return std::alignment_of_v<Ty>;
+    template<class ...Ty>
+        requires (sizeof...(Ty) <= 1)
+    constexpr auto alignof_v = [] {
+        if constexpr (sizeof...(Ty) == 0) return value_filter<alignof_impl>{};
+        else {
+            using type = std::tuple_element_t<0, std::tuple<Ty...>>;
+            if constexpr (std::is_void_v<type>) return 0;
+            else if constexpr (std::is_function_v<type>) return 0;
+            else return std::alignment_of_v<type>;
+        }
     }();
 
     template<template<class Ty, class ...Args> class Trait, class Ty, class ...Args>

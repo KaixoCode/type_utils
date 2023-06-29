@@ -1,7 +1,247 @@
 #pragma once
 #include "type_traits.hpp"
+#include "struct.hpp"
 
 namespace kaixo {
+    /**
+     * Type manipulator:
+     * - transform<T<...>>                      Transform type to T<Ty>
+     * - conditional_transform<Filter, T<...>>  Conditionally transform to T<Ty> if match Filter
+     * - uninstantiate                          Remove the template parameters from Ty
+     * - instantiate<Tys...>                    Add template parameters to Ty like Ty<Tys...>
+     * - reinstantiate<Tys...>                  Replace the template parameters from Ty like Ty<Tys...>
+     * - tparams                                Get the template parameters of Ty
+     * 
+     * Pack info:
+     * - element<I>                             Get I'th element
+     * - contains<Ty>                           Contains Ty
+     * - contains_all<Tys...>                   Contains all of Tys...
+     * - contains_any<Tys...>                   Contains any of Tys...
+     * - count<Ty>                              Number of occurences of Ty
+     * - count_all<Tys...>                      Number of occurences of all Tys...
+     * - count_filter<Filter>                   Number of occurences that match Filter
+     * - count_unique                           Number of unique types
+     * - index<Ty>                              First index of Ty
+     * - index_filter<Filter>                   First index that matches Filter
+     * - last_index<Ty>                         Last index of Ty
+     * - last_index_filter<Filter>              Last index that matches Filter
+     * - indices<Tys...>                        All indices of all Tys...
+     * - indices_except<Tys...>                 All indices except all of Tys...
+     * - indices_filter<Filter>                 All indices that match Filter
+     * - as<T<...>>                             Instantiate T<...> with pack types
+     * 
+     * Pack manipulators:
+     * - reverse                                Reverse pack
+     * - unique                                 Only keep first occurence of type
+     * - join                                   Flatten pack of packs
+     * - split<Tys...>                          Split pack at all Tys... (consumes)
+     * - split_after<Tys...>                    Split pack after all Tys... (does not consume)
+     * - split_before<Tys...>                   Split pack before all Tys... (does not consume)
+     * - split_filter<Filter>                   Split pack at all Filter matches (consumes)
+     * - split_after_filter<Filter>             Split pack after all Filter matches (does not consume)
+     * - split_before_filter<Filter>            Split pack before all Filter matches (does not consume)
+     * - take<I>                                Take first I types
+     * - take_while<Filter>                     Take while Filter matches
+     * - take_last<I>                           Take last I types
+     * - take_last_while<Filter>                Take last while Filter matches
+     * - drop<I>                                Drop first I types
+     * - drop_while<Filter>                     Drop while Filter matches
+     * - drop_last<I>                           Drop last I types
+     * - drop_last_while<Filter>                Drop last while Filter matches
+     * - keep_indices<Is...>                    Only keep indices Is...
+     * - keep<Tys...>                           Only keep types Tys...
+     * - remove_indices<Is...>                  Remove indices Is...
+     * - remove<Tys...>                         Remove types Tys...
+     * - append<Tys...>                         Append types Tys...
+     * - prepend<Tys...>                        Prepend types Tys...
+     * - insert<I, Tys...>                      Insert types Tys... at index I
+     * - sub<A, B>                              Only keep indices between A and B
+     * - filter<Filter>                         Only keep types that match Filter
+     * - sort_types<Sorter>                     Sort the types using the Sorter
+     * - replace<A..., B>                       Replace all A... with B
+     *                                          
+     * Pack combiners:                          
+     * - concat<Tys...>                         Concat all packs Tys...
+     * - zip<Tys...>                            Zip all packs Tys...
+     * - cartesian<Tys...>                      Cartesian product of all packs Tys...
+     * 
+     */
+
+    namespace pack {
+
+        namespace detail {
+            template<template<class...> class Ty, class A, class ...Args>
+            struct on_pack : Ty<A, Args...> {};
+
+            template<template<class...> class Ty, class A, class ...Args>
+            struct on_pack<Ty, A, info<Args...>> : Ty<A, Args...> {};
+
+            template<template<class...> class Ty, class A, structured_binding B>
+            struct on_pack<Ty, A, B> : on_pack<Ty, A, binding_types_t<B>> {};
+
+            template<template<class...> class Ty, class A>
+            struct on_pack<Ty, A> {
+                template<class ...Args>
+                using type = on_pack<Ty, A, Args...>;
+            };
+
+            template<template<auto, class...> class Ty, auto A, class ...Args>
+            struct on_pack_v : Ty<A, Args...> {};
+
+            template<template<auto, class...> class Ty, auto A, class ...Args>
+            struct on_pack_v<Ty, A, info<Args...>> : Ty<A, Args...> {};
+
+            template<template<auto, class...> class Ty, auto A, structured_binding B>
+            struct on_pack_v<Ty, A, B> : on_pack_v<Ty, A, binding_types_t<B>> {};
+
+            template<template<auto, class...> class Ty, auto A>
+            struct on_pack_v<Ty, A> {
+                template<class ...Args>
+                using type = on_pack_v<Ty, A, Args...>;
+            };
+        }
+
+        // =======================================================
+
+        namespace detail {
+            template<std::size_t I, class Ty> 
+            struct indexed : std::type_identity<Ty> {};
+
+            template<class, class...> 
+            struct indexer;
+
+            template<std::size_t ...Is, class ...Args>
+            struct indexer<std::index_sequence<Is...>, Args...> 
+                : indexed<Is, Args>... {};
+
+            // Overload resolution to get element at index I
+            template<std::size_t I, class Ty> 
+            consteval indexed<I, Ty> element_finder(indexed<I, Ty>);
+            
+            template<std::size_t I, class ...Args>
+            struct element_impl {
+                using type = typename decltype(element_finder<I>(
+                    indexer<std::index_sequence_for<Args...>, Args...>{}))::type;
+                using _type = type;
+            };
+        }
+
+        template<std::size_t I, class ...Args>
+        struct element : detail::on_pack_v<detail::element_impl, I, Args...> {};
+
+        template<std::size_t I>
+        struct element<I> {
+            template<class ...Args>
+            using type = element<I, Args...>::type;
+            using _type = templated_t<type>;
+        };
+
+        template<std::size_t I, class ...Args>
+        using element_t = element<I, Args...>::_type;
+
+        // =======================================================
+
+        namespace detail {
+            template<class Ty, class ...Args>
+            struct contains_impl : std::bool_constant<(same_as<Ty, Args> || ...)> {};
+        }
+
+        template<class Ty, class ...Args>
+        struct contains : detail::on_pack<detail::contains_impl, Ty, Args...> {};
+        
+        template<class Ty>
+        struct contains<Ty> {
+            template<class ...Args>
+            using type = contains<Ty, Args...>;
+            constexpr static type_trait<type> value{};
+        };
+
+        template<class Ty, class ...Args>
+        constexpr auto contains_v = contains<Ty, Args...>::value;
+
+        // =======================================================
+
+        namespace detail {
+            template<class, class ...Args> struct contains_all_impl;
+
+            template<class ...Tys, class ...Args>
+            struct contains_all_impl<info<Tys...>, Args...>
+                : std::bool_constant<(contains_v<Tys, Args...> && ...)> {};
+        }
+
+        template<class Ty, class ...Args>
+        struct contains_all : detail::on_pack<detail::contains_all_impl, Ty, Args...> {};
+
+        template<class ...Tys>
+        struct contains_all<info<Tys...>> {
+            template<class ...Args>
+            using type = contains_all<info<Tys...>, Args...>;
+            constexpr static type_trait<type> value{};
+        };
+        
+        template<class Ty, class ...Tys>
+            requires (!specialization<Ty, info>)
+        struct contains_all<Ty, Tys...> {
+            template<class ...Args>
+            using type = contains_all<info<Tys...>, Args...>;
+            constexpr static type_trait<type> value{};
+        };
+
+        template<class Ty, class ...Args>
+        constexpr auto contains_all_v = contains_all<Ty, Args...>::value;
+
+        // =======================================================
+
+        namespace detail {
+            template<class, class ...Args> struct contains_any_impl;
+
+            template<class ...Tys, class ...Args>
+            struct contains_any_impl<info<Tys...>, Args...> 
+                : std::bool_constant<(contains_v<Tys, Args...> || ...)> {};
+        }
+
+        template<class A, class ...Args>
+        struct contains_any : detail::on_pack<detail::contains_any_impl, A, Args...>{};
+
+        template<class ...Tys>
+        struct contains_any<info<Tys...>> {
+            template<class ...Args>
+            using type = contains_any<info<Tys...>, Args...>;
+            constexpr static type_trait<type> value{};
+        };
+        
+        template<class Ty, class ...Tys>
+            requires (!specialization<Ty, info>)
+        struct contains_any<Ty, Tys...> {
+            template<class ...Args>
+            using type = contains_any<info<Tys...>, Args...>;
+            constexpr static type_trait<type> value{};
+        };
+
+        template<class Ty, class ...Args>
+        constexpr auto contains_any_v = contains_any<Ty, Args...>::value;
+
+        // =======================================================
+
+        namespace detail {
+            template<class Ty, class ...Args>
+            struct count_impl : std::integral_constant<std::size_t, (same_as<Ty, Args> + ...)> {};
+        }
+
+        template<class Ty, class ...Args>
+        struct count : detail::on_pack<detail::count_impl, Ty, Args...> {};
+
+        template<class Ty>
+        struct count<Ty> {
+            template<class ...Args>
+            using type = count<Ty, Args...>;
+            constexpr static value_filter<type> value{};
+        };
+
+        template<class Ty, class ...Args>
+        constexpr auto count_v = count<Ty, Args...>::value;
+
+    }
 
     template<auto Array, template<std::size_t ...> class Ty>
     struct array_to_pack {
@@ -797,13 +1037,16 @@ namespace kaixo {
     };
 
     template<class L, std::size_t I, class Ty> // Type trait
-    concept _call_type4 = requires (L) { L::template value<Ty>; };
+    concept _call_type4 = requires (L) { { L::template value<Ty> } -> convertible_to<bool>; };
 
     template<class L, std::size_t I, class Ty>// Value
     concept _call_type5 = requires(L l) { { l == Ty::value } -> convertible_to<bool>; };
 
     template<class L, std::size_t I, class Ty>// Value
     concept _call_type6 = std::same_as<L, bool>;
+
+    template<class L, std::size_t I, class Ty> // Value filter
+    concept _call_type7 = requires (L l) { { l.template evaluate<Ty>() } -> convertible_to<bool>; };
 
     template<class L>
     struct wrap_filter_object { using type = filter_object_wrapper<L>; };
@@ -825,6 +1068,7 @@ namespace kaixo {
             else if constexpr (_call_type2<L, I, Ty>) return this->value.template operator() < I > ();
             else if constexpr (_call_type3<L, I, Ty>) return true;
             else if constexpr (_call_type4<L, I, Ty>) return L::template value<Ty>;
+            else if constexpr (_call_type7<L, I, Ty>) return this->value.template evaluate<Ty>();
             else return false; // Otherwise always return false
         }
     };
