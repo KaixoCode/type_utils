@@ -203,7 +203,7 @@ namespace kaixo {
         struct specialized_info<value_t<Vs>...> : info<decltype(Vs)...> {
         using _selected_specialization = _s_value;
 
-        template<std::size_t I> constexpr static auto value = element_t<I, value_t<Vs>...>::value;
+        template<std::size_t I> constexpr static auto value = pack::element_t<I, value_t<Vs>...>::value;
     };
 
     /**
@@ -227,7 +227,7 @@ namespace kaixo {
     template<class ...Tys> requires (sizeof...(Tys) > 1)
         struct info_base<Tys...> : specialized_info<Tys...> {
         template<std::size_t I>
-        using type = element_t<I, Tys...>;
+        using type = pack::element_t<I, Tys...>;
 
         using alignment = info<value_t<alignof_v<Tys>>...>;
     };
@@ -244,48 +244,56 @@ namespace kaixo {
     template<class ...Tys>
     struct info : info_base<Tys...> {
         constexpr static auto size = sizeof...(Tys);
-        constexpr static auto unique_size = unique_count_v<Tys...>;
+        constexpr static auto unique_size = pack::count_unique_v<Tys...>;
 
         using bytes = info<value_t<sizeof_v<Tys>>...>;
-
-        template<class T> constexpr static auto index = index_v<T, Tys...>;
-        template<class T> constexpr static auto last_index = last_index_v<T, Tys...>;
-        template<class T> constexpr static auto count = count_v<T, Tys...>;
-        template<class T> constexpr static auto occurs = occurs_v<T, Tys...>;
-        template<class T> constexpr static auto indices = indices_v<T, Tys...>;
-        template<class T> constexpr static auto indices_except = indices_except_v<T, Tys...>;
-
-        template<auto Filter> constexpr static auto count_filter = count_filter_v<Filter, Tys...>;
-        template<auto Filter> constexpr static auto indices_filter = indices_filter_v<Filter, Tys...>;
 
         template<class Ty> struct _element_is_info { using type = info<Ty>; };
         template<class ...Tys> struct _element_is_info<info<Tys...>> { using type = info<Tys...>; };
 
-        template<std::size_t I> using element = _element_is_info<element_t<I, Tys...>>::type;
-        template<std::size_t I> using take = take_t<I, info>;
-        template<std::size_t I> using last = drop_t<size - I, info>;
-        template<std::size_t I> using drop = drop_t<I, info>;
-        template<std::size_t I> using drop_last = drop_last_t<I, info>;
-        template<std::size_t I> using erase = erase_t<I, info>;
+        template<std::size_t I> using element = _element_is_info<pack::element_t<I, info<Tys...>>>::type;
+        template<class    Ty> constexpr static bool contains = pack::contains_v<Ty, info<Tys...>>;
+        template<class ...As> constexpr static bool contains_all = pack::contains_all_v<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<class ...As> constexpr static bool contains_any = pack::contains_any_v<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<class    Ty> constexpr static std::size_t count = pack::count_v<Ty, info<Tys...>>;
+        template<class ...As> constexpr static std::size_t count_all = pack::count_all_v<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<auto Filter> constexpr static std::size_t count_filter = pack::count_filter_v<Filter, info<Tys...>>;
+        template<class     T> constexpr static std::size_t index = pack::index_v<T, info<Tys...>>;
+        template<auto Filter> constexpr static std::size_t index_filter = pack::index_filter_v<Filter, info<Tys...>>;
+        template<auto Filter> constexpr static std::size_t index_not_filter = pack::index_not_filter_v<Filter, info<Tys...>>;
+        template<class ...As> constexpr static std::array<std::size_t, count_all<As...>> indices = pack::indices_v<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<class ...As> constexpr static std::array<std::size_t, size - count_all<As...>> indices_except = pack::indices_except_v<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<auto Filter> constexpr static std::array<std::size_t, count_filter<Filter>> indices_filter = pack::indices_filter_v<Filter, info<Tys...>>;
+        template<auto Filter> constexpr static std::array<std::size_t, size - count_filter<Filter>> indices_except_filter = pack::indices_except_filter_v<Filter, info<Tys...>>;
+        template<class ...As> constexpr static auto first_indices = pack::first_indices_v<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<class ...As> constexpr static std::size_t first_index = pack::first_index_v<pack::detail::convert_to_info<As...>, info<Tys...>>;
 
-        template<std::size_t I, class T> using insert = insert_t<I, T, info>;
-        template<std::size_t I, class T> using swap = erase<I>::template insert<I, T>;
+        using reverse = pack::reverse_t<info<Tys...>>;
+        using unique = pack::unique_t<info<Tys...>>;
+        //using join = pack::join_t<info<Tys...>>;
+        
+        template<class   ...As> using split = pack::split_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<class   ...As> using split_after = pack::split_after_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<class   ...As> using split_before = pack::split_before_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<auto   Filter> using split_filter = pack::split_filter_t<Filter, info<Tys...>>;
+        template<auto   Filter> using split_after_filter = pack::split_after_filter_t<Filter, info<Tys...>>;
+        template<auto   Filter> using split_before_filter = pack::split_before_filter_t<Filter, info<Tys...>>;
+        template<std::size_t A, std::size_t B> using sub = pack::sub_t<A, B, info<Tys...>>;
+        template<std::size_t I> using take = pack::take_t<I, info<Tys...>>;
+        template<auto   Filter> using take_while = pack::take_while_t<Filter, info<Tys...>>;
+        template<std::size_t I> using drop = pack::drop_t<I, info<Tys...>>;
+        template<auto   Filter> using drop_while = pack::drop_while_t<Filter, info<Tys...>>;
+        template<auto    ...Is> using keep_indices = pack::keep_indices_t<pack::detail::convert_to_array<Is...>, info<Tys...>>;
+        template<class   ...As> using keep = pack::keep_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<auto    ...Is> using remove_indices = pack::remove_indices_t<pack::detail::convert_to_array<Is...>, info<Tys...>>;
+        template<class   ...As> using remove = pack::remove_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<class   ...As> using append = pack::append_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<class   ...As> using prepend = pack::prepend_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<std::size_t I, class   ...As> using insert = pack::insert_t<I, pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<class       R, class   ...As> using replace = pack::replace_t<R, pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<class       R, auto   Filter> using replace_filter = pack::replace_filter_t<R, Filter, info<Tys...>>;
+        template<auto   Sorter> using sort = pack::sort_t<Sorter, info<Tys...>>;
 
-        template<std::size_t A, std::size_t B> using sub = sub_t<A, B, info>;
-
-        template<auto Array> using remove_indices = remove_indices_t<Array, info>;
-        template<auto Array> using keep_indices = keep_indices_t<Array, info>;
-
-        template<class T> using remove = remove_t<T, info>;
-        template<class T> using keep = keep_t<T, info>;
-
-        template<class T> using append = append_t<T, info>;
-        template<class T> using prepend = prepend_t<T, info>;
-
-        template<class A, class B> using replace = replace_t<A, B, info>;
-
-        using unique = unique_t<info>;
-        using reverse = reverse_t<info>;
         using uninstantiate = info<uninstantiate_t<Tys>...>;
         using tparams = tparams_t<Tys...>;
 
@@ -294,8 +302,8 @@ namespace kaixo {
 
         template<template<class...> class T> using transform = transform_t<T, info>;
         template<template<class...> class T> using as = T<Tys...>;
-        template<auto Filter> using filter = filter_t<Filter, info>;
-        template<auto Sorter> using sort = sort_types_t<Sorter, info>;
+        template<auto Filter> using filter = pack::filter_t<Filter, info>;
+
         constexpr static auto for_each = []<class Ty>(Ty && lambda) {
             return lambda.operator() < Tys... > ();
         };

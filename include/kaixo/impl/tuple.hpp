@@ -833,7 +833,7 @@ namespace kaixo::tuples {
         template<std::size_t N, class Self>
             requires (N < types::size)
         constexpr decltype(auto) get(this Self&& self) {
-            constexpr auto Indices = first_indices_v<typename decay_t<Tpl>::types>;
+            constexpr auto Indices = pack::unique_indices_v<typename decay_t<Tpl>::types>;
             return tuples::get<Indices[N]>(std::forward<Self>(self).tpl);
         }
     };
