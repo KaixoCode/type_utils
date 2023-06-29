@@ -58,6 +58,40 @@ namespace kaixo {
     template<detail::is_type_filter auto Fltr, class ...Args>
     constexpr auto evaluate_type_filter = Fltr.template evaluate<Args...>();
 
+    namespace detail {
+        template<template<class...> class Ty, class A>
+        struct transform_type_filter {
+            using _is_type_filter = int;
+
+            [[no_unique_address]] A a;
+
+            template<class ...Tys>
+            constexpr auto evaluate() const {
+                return detail::_vfv<Ty<Tys...>>(a);
+            }
+
+            template<class B>
+            constexpr auto operator[](B&& b) const {
+                return detail::index_type_filter{ *this, std::forward<B>(b) };
+            }
+        };
+
+        template<template<class...> class Ty> 
+        struct with_impl {
+            template<class Arg>
+            constexpr auto operator()(Arg&& val) const {
+                return transform_type_filter<Ty, Arg>{ std::forward<Arg>(val) };
+            }
+        };
+    }
+
+    /**
+     * Allows for a transform inside a filter. Used like:
+     *   with<transform>(filter)
+     */
+    template<template<class...> class Ty>
+    constexpr auto with = detail::with_impl<Ty>{};
+
     /**
      * Concept to match a type_trait.
      * @tparam Ty type

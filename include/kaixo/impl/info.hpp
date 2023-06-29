@@ -302,7 +302,7 @@ namespace kaixo {
 
         template<template<class...> class T> using transform = transform_t<T, info>;
         template<template<class...> class T> using as = T<Tys...>;
-        template<auto Filter> using filter = pack::filter_t<Filter, info>;
+        template<auto Filter> using filter = pack::filter_t<Filter, info<Tys...>>;
 
         constexpr static auto for_each = []<class Ty>(Ty && lambda) {
             return lambda.operator() < Tys... > ();
