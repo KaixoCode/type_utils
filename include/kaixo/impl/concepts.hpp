@@ -5,7 +5,15 @@
  * All standard traits as concepts.
  */
 namespace kaixo {
+    namespace detail {
+        template<template<class Ty, class ...Args> class Trait, class Ty, class ...Args>
+        struct pack_trait_helper : Trait<Ty, Args...> {};
+        template<template<class Ty, class ...Args> class Trait, class Ty, class ...Args>
+        struct pack_trait_helper<Trait, Ty, info<Args...>> : Trait<Ty, Args...> {};
+    }
+
     inline namespace type_concepts {
+
         template<class Ty> concept void_type = std::is_void_v<Ty>;
         template<class Ty> concept null_pointer = std::is_null_pointer_v<Ty>;
         template<class Ty> concept boolean = std::is_same_v<Ty, bool>;
@@ -82,11 +90,11 @@ namespace kaixo {
         template<class Ty, class Other> concept convertible_from = std::is_convertible_v<Other, Ty>;
         template<class Ty, class Other> concept nothrow_convertible_from = std::is_nothrow_convertible_v<Other, Ty>;
 
-        template<class Ty, class ...Args> concept constructible = pack_trait_helper<std::is_constructible, Ty, Args...>::value;
-        template<class Ty, class ...Args> concept trivially_constructible = pack_trait_helper<std::is_trivially_constructible, Ty, Args...>::value;
-        template<class Ty, class ...Args> concept nothrow_constructible = pack_trait_helper<std::is_nothrow_constructible, Ty, Args...>::value;
-        template<class Ty, class ...Args> concept invocable = pack_trait_helper<std::is_invocable, Ty, Args...>::value;
-        template<class Ty, class ...Args> concept nothrow_invocable = pack_trait_helper<std::is_nothrow_invocable, Ty, Args...>::value;
+        template<class Ty, class ...Args> concept constructible = detail::pack_trait_helper<std::is_constructible, Ty, Args...>::value;
+        template<class Ty, class ...Args> concept trivially_constructible = detail::pack_trait_helper<std::is_trivially_constructible, Ty, Args...>::value;
+        template<class Ty, class ...Args> concept nothrow_constructible = detail::pack_trait_helper<std::is_nothrow_constructible, Ty, Args...>::value;
+        template<class Ty, class ...Args> concept invocable = detail::pack_trait_helper<std::is_invocable, Ty, Args...>::value;
+        template<class Ty, class ...Args> concept nothrow_invocable = detail::pack_trait_helper<std::is_nothrow_invocable, Ty, Args...>::value;
 
         template<class, template<class...> class>
         struct specialization_impl : std::false_type {};

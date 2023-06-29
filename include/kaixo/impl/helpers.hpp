@@ -10,7 +10,7 @@
 #include <tuple>
 #include "string_literal.hpp"
 #include "sequence.hpp"
-#include "value_filter.hpp"
+#include "type_filter.hpp"
 
 /**
  * Some general helpers and pre-definitions.
@@ -379,7 +379,7 @@ namespace kaixo {
     template<class ...Ty>
         requires (sizeof...(Ty) <= 1)
     constexpr auto sizeof_v = [] {
-        if constexpr (sizeof...(Ty) == 0) return value_filter<sizeof_impl>{};
+        if constexpr (sizeof...(Ty) == 0) return type_filter<sizeof_impl>{};
         else {
             using type = std::tuple_element_t<0, std::tuple<Ty...>>;
             if constexpr (std::is_void_v<type>) return 0;
@@ -399,7 +399,7 @@ namespace kaixo {
     template<class ...Ty>
         requires (sizeof...(Ty) <= 1)
     constexpr auto alignof_v = [] {
-        if constexpr (sizeof...(Ty) == 0) return value_filter<alignof_impl>{};
+        if constexpr (sizeof...(Ty) == 0) return type_filter<alignof_impl>{};
         else {
             using type = std::tuple_element_t<0, std::tuple<Ty...>>;
             if constexpr (std::is_void_v<type>) return 0;
@@ -408,8 +408,29 @@ namespace kaixo {
         }
     }();
 
-    template<template<class Ty, class ...Args> class Trait, class Ty, class ...Args>
-    struct pack_trait_helper : Trait<Ty, Args...> {};
-    template<template<class Ty, class ...Args> class Trait, class Ty, class ...Args>
-    struct pack_trait_helper<Trait, Ty, info<Args...>> : Trait<Ty, Args...> {};
+    /**
+     * Partially specialize T by setting the first
+     * template parameters to ...As
+     * @tparam T templated type
+     * @tparam ...As types to
+     */
+    template<template<class...> class T, class ...As>
+    struct partial_first {
+        template<class ...Bs>
+        using type = T<As..., Bs...>;
+    };
+    template<template<class...> class T, class ...As>
+    using partial = partial_first<T, As...>;
+
+    /**
+     * Partially specialize T by setting the last
+     * template parameters to ...As
+     * @tparam T templated type
+     * @tparam ...As types to
+     */
+    template<template<class...> class T, class ...As>
+    struct partial_last {
+        template<class ...Bs>
+        using type = T<Bs..., As...>;
+    };
 }

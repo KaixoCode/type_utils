@@ -23,7 +23,7 @@ namespace kaixo {
     namespace has {
         template<class Ty> struct decayed_tuple_impl : std::bool_constant<has_decayed_tuple<Ty>> {};
 
-        constexpr auto decayed_tuple = type_trait<decayed_tuple_impl>{};
+        constexpr auto decayed_tuple = type_filter<decayed_tuple_impl>{};
     }
 
     namespace grab {
