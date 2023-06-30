@@ -245,9 +245,9 @@ namespace kaixo {
     struct info : info_base<Tys...> {
         constexpr static std::size_t size = sizeof...(Tys);
         constexpr static std::size_t unique_size = pack::count_unique_v<info<Tys...>>;
-        constexpr static std::size_t count_unique = unique_size;
-
         using bytes = info<value_t<sizeof_v<Tys>>...>;
+
+        // Type manipulators
 
         template<template<class...> class              T> using transform = info<pack::transform_t<T, Tys>...>;
         template<auto Filter, template<class...> class T> using conditional_transform = info<pack::conditional_transform_t<Filter, T, Tys>...>;
@@ -265,6 +265,8 @@ namespace kaixo {
             using transform = pack::conditional_transform_t<Filter, T, info>;
         };
 
+        // Pack info
+
         template<class Ty> struct _element_is_info { using type = info<Ty>; };
         template<class ...Tys> struct _element_is_info<info<Tys...>> { using type = info<Tys...>; };
 
@@ -275,6 +277,7 @@ namespace kaixo {
         template<class    Ty> constexpr static std::size_t count = pack::count_v<Ty, info<Tys...>>;
         template<class ...As> constexpr static std::size_t count_all = pack::count_all_v<pack::detail::convert_to_info<As...>, info<Tys...>>;
         template<auto Filter> constexpr static std::size_t count_filter = pack::count_filter_v<Filter, info<Tys...>>;
+        constexpr static std::size_t count_unique = unique_size;
         template<class     T> constexpr static std::size_t index = pack::index_v<T, info<Tys...>>;
         template<auto Filter> constexpr static std::size_t index_filter = pack::index_filter_v<Filter, info<Tys...>>;
         template<auto Filter> constexpr static std::size_t index_not_filter = pack::index_not_filter_v<Filter, info<Tys...>>;
@@ -284,6 +287,8 @@ namespace kaixo {
         template<auto Filter> constexpr static std::array<std::size_t, size - count_filter<Filter>> indices_except_filter = pack::indices_except_filter_v<Filter, info<Tys...>>;
         template<class ...As> constexpr static auto first_indices = pack::first_indices_v<pack::detail::convert_to_info<As...>, info<Tys...>>;
         template<class ...As> constexpr static std::size_t first_index = pack::first_index_v<pack::detail::convert_to_info<As...>, info<Tys...>>;
+
+        // Pack manipulators
 
         using reverse = pack::reverse_t<info<Tys...>>;
         using unique = pack::unique_t<info<Tys...>>;
@@ -318,9 +323,13 @@ namespace kaixo {
         template<auto   Filter> using filter = pack::filter_t<Filter, info<Tys...>>;
         template<auto   Sorter> using sort = pack::sort_t<Sorter, info<Tys...>>;
 
+        // Pack combiners
+
         template<class ...Args> using concat = pack::concat_t<info<Tys...>, Args...>;
         template<class ...Args> using zip = pack::zip_t<info<Tys...>, Args...>;
         template<class ...Args> using cartesian = pack::cartesian_t<info, Args...>;
+
+        // Type traits
 
         using is_void = info<value_t<std::is_void_v<Tys>>...>;
         using is_null_pointer = info<value_t<std::is_null_pointer_v<Tys>>...>;
@@ -403,6 +412,8 @@ namespace kaixo {
         template<class Ty> using can_nothrow_construct = info<value_t<std::is_nothrow_constructible_v<Ty, Tys...>>>;
         template<class Ty> using can_invoke = info<value_t<std::is_invocable_v<Ty, Tys...>>>;
         template<class Ty> using can_nothrow_invoke = info<value_t<std::is_nothrow_invocable_v<Ty, Tys...>>>;
+
+        // Qualifiers
 
         // Copy modifiers from From to ...Tys
         template<class From>

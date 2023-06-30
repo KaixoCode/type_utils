@@ -103,8 +103,8 @@ namespace kaixo {
         template<class Ty, class Other> concept constructs = std::is_constructible_v<Other, Ty>;
         template<class Ty, class Other> concept trivially_constructs = std::is_trivially_constructible_v<Other, Ty>;
         template<class Ty, class Other> concept nothrow_constructs = std::is_nothrow_constructible_v<Other, Ty>;
-        template<class Ty, class Other> concept invoces = std::is_invocable_v<Other, Ty>;
-        template<class Ty, class Other> concept nothrow_invoces = std::is_nothrow_invocable_v<Other, Ty>;
+        template<class Ty, class Other> concept invokes = std::is_invocable_v<Other, Ty>;
+        template<class Ty, class Other> concept nothrow_invokes = std::is_nothrow_invocable_v<Other, Ty>;
 
         template<class Test, template<class...> class Ref>
         concept specialization = detail::specialization_impl<std::decay_t<Test>, Ref>::value;
