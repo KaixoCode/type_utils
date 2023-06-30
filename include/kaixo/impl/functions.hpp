@@ -1,13 +1,17 @@
 #pragma once 
 #include "helpers.hpp"
+#include "concepts.hpp"
 
 /**
  * Information regarding function, member functions, and function pointers.
  */
 namespace kaixo {
-    constexpr auto unit = []<class Ty>(Ty && i) -> Ty&& { return std::forward<Ty>(i); };
-    template<class To>
-    constexpr auto cast = []<class Ty>(Ty && i) -> To { return static_cast<To>(std::forward<Ty>(i)); };
+
+    namespace function {
+        constexpr auto unit = []<class Ty>(Ty && i) -> Ty&& { return std::forward<Ty>(i); };
+        template<class To>
+        constexpr auto cast = []<class Ty>(Ty && i) -> To { return static_cast<To>(std::forward<Ty>(i)); };
+    }
 
 #define NO_ARG
 #define KAIXO_MEMBER_CALL_C(MAC, V, REF, NOEXCEPT) \
@@ -27,15 +31,11 @@ KAIXO_MEMBER_CALL_V(MAC,     &&, NOEXCEPT)
 KAIXO_MEMBER_CALL_NOEXCEPT(MAC, NO_ARG  ) \
 KAIXO_MEMBER_CALL_NOEXCEPT(MAC, noexcept) 
 
-    /**
-     * Check if a type has a call operator.
-     * @tparam Ty type to check
-     */
-    template<class Ty> concept is_functor = requires(decltype(&Ty::operator()) a) { a; };
-
-    template<class> struct function_info_impl;
-    template<is_functor Ty> struct function_info_impl<Ty>
-    : function_info_impl<decltype(&Ty::operator())> {};
+    namespace detail {
+        template<class> struct function_info_impl;
+        template<concepts::functor Ty> struct function_info_impl<Ty>
+        : function_info_impl<decltype(&Ty::operator())> {};
+    
 
 #define KAIXO_MEMBER_FUNCTION_INFO_MOD(CONST, VOLATILE, REF, NOEXCEPT)                   \
 template<class Ty, class R, class ...Args>                                               \
@@ -119,7 +119,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     KAIXO_FUNCTION_PTR_INFO_MOD(noexcept);
 #undef KAIXO_FUNCTION_PTR_INFO_MOD
 
-    template<class Ty> using function_info = function_info_impl<std::remove_cv_t<std::remove_reference_t<Ty>>>;
-    template<auto Ty> using function_info_v = function_info_impl<std::remove_cv_t<std::remove_reference_t<decltype(Ty)>>>;
-    template<class Ty> concept callable_type = requires(Ty) { typename function_info<Ty>::result; };
+        template<class Ty> using function_info = function_info_impl<std::remove_cv_t<std::remove_reference_t<Ty>>>;
+        template<class Ty> concept callable_type = requires(Ty) { typename function_info<Ty>::result; };
+    }
 }

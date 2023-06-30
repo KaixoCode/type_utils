@@ -3,7 +3,41 @@
 
 /**
  * Modify the qualifiers of a type.
+ * copy_const<Ty>           Copy const from Ty, overrides existing
+ * copy_volatile<Ty>        Copy volatile from Ty, overrides existing
+ * copy_cv<Ty>              Copy const and volatile from Ty, overrides existing
+ * copy_ref<Ty>             Copy reference from Ty, overrides existing
+ * copy_cvref<Ty>           Copy const, volatile, and reference from Ty, overrides existing
+ * 
+ * copy_const_from<Ty>      Partial version of copy_const<Ty>
+ * copy_volatile_from<Ty>   Partial version of copy_volatile<Ty>
+ * copy_cv_from<Ty>         Partial version of copy_cv<Ty>
+ * copy_ref_from<Ty>        Partial version of copy_ref<Ty>
+ * copy_cvref_from<Ty>      Partial version of copy_cvref<Ty>
+ * 
+ * add_const<Ty>            Add const, optionally from Ty
+ * add_volatile<Ty>         Add volatile, optionally from Ty
+ * add_cv<Ty>               Add const and volatile, optionally from Ty
+ * add_ref<Ty>              Add reference from Ty
+ * add_cvref<Ty>            Add const, volatile, and reference from Ty    
+ * add_lvalue_reference     Add lvalue reference    
+ * add_rvalue_reference     Add rvalue reference     
+ * add_pointer              Add pointer
+ * 
+ * add_const_from<Ty>       Partial version of add_const<Ty>
+ * add_volatile_from<Ty>    Partial version of add_volatile<Ty>
+ * add_cv_from<Ty>          Partial version of add_cv<Ty>
+ * add_ref_from<Ty>         Partial version of add_ref<Ty>
+ * add_cvref_from<Ty>       Partial version of add_cvref<Ty>
+ * 
+ * remove_const             Remove const
+ * remove_volatile          Remove volatile
+ * remove_cv                Remove const and volatile
+ * remove_reference         Remove reference
+ * remove_cvref             Remove const, volatile, and reference
+ * remove_pointer           Remove pointer
  */
+
 namespace kaixo {
     template<class To, class From>
     struct add_ref {

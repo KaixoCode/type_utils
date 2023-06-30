@@ -10,10 +10,14 @@ namespace kaixo {
         struct pack_trait_helper : Trait<Ty, Args...> {};
         template<template<class Ty, class ...Args> class Trait, class Ty, class ...Args>
         struct pack_trait_helper<Trait, Ty, info<Args...>> : Trait<Ty, Args...> {};
+
+        template<class, template<class...> class>
+        struct specialization_impl : std::false_type {};
+        template<template<class...> class Ref, class... Args>
+        struct specialization_impl<Ref<Args...>, Ref> : std::true_type {};
     }
 
-    inline namespace type_concepts {
-
+    namespace concepts {
         template<class Ty> concept void_type = std::is_void_v<Ty>;
         template<class Ty> concept null_pointer = std::is_null_pointer_v<Ty>;
         template<class Ty> concept boolean = std::is_same_v<Ty, bool>;
@@ -96,17 +100,20 @@ namespace kaixo {
         template<class Ty, class ...Args> concept invocable = detail::pack_trait_helper<std::is_invocable, Ty, Args...>::value;
         template<class Ty, class ...Args> concept nothrow_invocable = detail::pack_trait_helper<std::is_nothrow_invocable, Ty, Args...>::value;
 
-        template<class, template<class...> class>
-        struct specialization_impl : std::false_type {};
-        template<template<class...> class Ref, class... Args>
-        struct specialization_impl<Ref<Args...>, Ref> : std::true_type {};
+        template<class Ty, class Other> concept constructs = std::is_constructible_v<Other, Ty>;
+        template<class Ty, class Other> concept trivially_constructs = std::is_trivially_constructible_v<Other, Ty>;
+        template<class Ty, class Other> concept nothrow_constructs = std::is_nothrow_constructible_v<Other, Ty>;
+        template<class Ty, class Other> concept invoces = std::is_invocable_v<Other, Ty>;
+        template<class Ty, class Other> concept nothrow_invoces = std::is_nothrow_invocable_v<Other, Ty>;
 
         template<class Test, template<class...> class Ref>
-        concept specialization = specialization_impl<std::decay_t<Test>, Ref>::value;
+        concept specialization = detail::specialization_impl<std::decay_t<Test>, Ref>::value;
 
         template<class Ty>
         concept structured_binding = aggregate<Ty> || requires () {
             typename std::tuple_element<0, Ty>::type;
         };
+
+        template<class Ty> concept functor = requires(decltype(&Ty::operator()) a) { a; };
     }
 }

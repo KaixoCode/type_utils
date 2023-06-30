@@ -7,11 +7,11 @@ namespace kaixo {
      * Type manipulator:
      * - transform<T<...>>                      Transform type to T<Ty>
      * - conditional_transform<Filter, T<...>>  Conditionally transform to T<Ty> if match Filter
+     * - tparams                                Get the template parameters of Ty
+     * - copy_tparams<T<...>>                   Copy tparams to T<Tys...>
      * - uninstantiate                          Remove the template parameters from Ty
      * - instantiate<Tys...>                    Add template parameters to Ty like Ty<Tys...>
      * - reinstantiate<Tys...>                  Replace the template parameters from Ty like Ty<Tys...>
-     * - tparams                                Get the template parameters of Ty
-     * - move_tparams<T<...>>                   Move tparams to T<Tys...>
      * 
      * Pack info:
      * - element<I>                             Get I'th element
@@ -31,7 +31,6 @@ namespace kaixo {
      * - indices_except_filter<Filter>          All indices except all that match Filter
      * - first_index<Tys...>                    First index of any in Tys...
      * - first_indices<Tys...>                  First indices of all Tys...
-     * - as<T<...>>                             Instantiate T<...> with pack types
      * 
      * Pack manipulators:
      * - reverse                                Reverse pack
@@ -48,12 +47,17 @@ namespace kaixo {
      * - take_while<Filter>                     Take while Filter matches
      * - drop<I>                                Drop first I types
      * - drop_while<Filter>                     Drop while Filter matches
+     * - take_last<I>                           Take last I types
+     * - take_last_while<Filter>                Take last while Filter matches
+     * - drop_last<I>                           Drop last I types
+     * - drop_last_while<Filter>                Drop last while Filter matches
      * - keep_indices<Is...>                    Only keep indices Is...
      * - keep<Tys...>                           Only keep types Tys...
      * - remove_indices<Is...>                  Remove indices Is...
      * - remove<Tys...>                         Remove types Tys...
      * - append<Tys...>                         Append types Tys...
      * - prepend<Tys...>                        Prepend types Tys...
+     * - erase<I>                               Remove index I
      * - insert<I, Tys...>                      Insert types Tys... at index I
      * - swap<I, B>                             Swap index I with B
      * - replace<A, B...>                       Replace all B... with A
@@ -67,228 +71,37 @@ namespace kaixo {
      * - cartesian<Tys...>                      Cartesian product of all packs Tys...
      * 
      */
-
-    /**
-     * A filter object can be one of the following:
-     *  - []<class Ty>{ return ... };                      return a boolean based on type
-     *  - []<std::size_t Index, class Ty>{ return ... };   return a boolean based on index and type
-     *  - []<std::size_t Index>{ return ... };             return a boolean based on index
-     *  - []<concept constraint Ty>{};                     match concept constraint
-     *  - type_filter specialization                       type filter evaluation
-     *  - Type::value                                      std::bool_constant for example
-     *  - value == Ty::value                               a value that will be compared
-     *  - convertible_to<bool>                             any value that is convertible to bool
-     */
-    namespace detail {
-        template<class L>
-        struct filter_object_wrapper {
-            consteval filter_object_wrapper(L value) : value(value) {}
-            L value;
-        };
-
-        template<class L, std::size_t I, class Ty>
-        concept _call_type0 = requires (L l) { // Only type -> bool
-            { l.template operator() < Ty > () } -> convertible_to<bool>;
-        };
-
-        template<class L, std::size_t I, class Ty>
-        concept _call_type1 = requires (L l) { // Index, type -> bool
-            { l.template operator() < I, Ty > () } -> convertible_to<bool>;
-        };
-
-        template<class L, std::size_t I, class Ty>
-        concept _call_type2 = requires (L l) { // Only index -> bool
-            { l.template operator() < I > () } -> convertible_to<bool>;
-        };
-
-        template<class L, std::size_t I, class Ty>
-        concept _call_type3 = requires (L l) { // Type -> void (type constraint)
-            { l.template operator() < Ty > () } -> same_as<void>;
-        };
-
-        template<class L, std::size_t I, class Ty> // type filter
-        concept _call_type4 = requires (L l) { { l.template evaluate<Ty>() } -> convertible_to<bool>; };
-
-        template<class L, std::size_t I, class Ty> // Test value equality
-        concept _call_type5 = requires(L l) { { l == Ty::value } -> convertible_to<bool>; };
-        
-        template<class L, std::size_t I, class Ty> // Boolean
-        concept _call_type6 = std::convertible_to<L, bool>;
-
-        template<class L, std::size_t I, class Ty> // bool_constant
-        concept _call_type7 = requires(L l) { { L::value } -> convertible_to<bool>; };
-
-        template<class L>
-        struct filter_object : detail::filter_object_wrapper<L> {
-            template<std::size_t I, class Ty> consteval bool call() {
-                if constexpr (detail::_call_type5<L, I, Ty>) return this->value == Ty::value;
-                else if constexpr (detail::_call_type6<L, I, Ty>) return this->value;
-                else if constexpr (detail::_call_type7<L, I, Ty>) return L::value;
-                else if constexpr (detail::_call_type0<L, I, Ty>) return this->value.template operator() < Ty > ();
-                else if constexpr (detail::_call_type1<L, I, Ty>) return this->value.template operator() < I, Ty > ();
-                else if constexpr (detail::_call_type2<L, I, Ty>) return this->value.template operator() < I > ();
-                else if constexpr (detail::_call_type3<L, I, Ty>) return true;
-                else if constexpr (detail::_call_type4<L, I, Ty>) return this->value.template evaluate<Ty>();
-                else return false; // Otherwise always return false
-            }
-        };
-
-        template<class T> filter_object(T) -> filter_object<T>;
-    }
-
-    /**
-     * Test whether Ty and optional index I match Filter.
-     * @tparam Filter filter object
-     * @tparam Ty type to filter
-     * @tparam I index of type
-     */
-    template<auto Filter, class Ty, std::size_t I = 0>
-    constexpr bool matches_filter = static_cast<bool>(detail::filter_object{ Filter }.template call<I, Ty>());
-
-    template<auto Array, template<std::size_t ...> class Ty>
-    struct array_to_pack {
-        template<class> struct helper;
-        template<std::size_t ...Is>
-        struct helper<std::index_sequence<Is...>> {
-            using type = Ty<Array[Is]...>;
-        };
-
-        using type = typename helper<std::make_index_sequence<Array.size()>>::type;
-    };
-
-    /**
-     * Convert an array of indices to a template pack.
-     * @tparam Array array of std::size_t
-     * @tparam Ty templated type that takes std::size_t's
-     */
-    template<auto Array, template<std::size_t ...> class Ty>
-    using array_to_pack_t = typename array_to_pack<Array, Ty>::type;
-
-    /**
-     * Convert template pack of indices to an array.
-     * @tparam ...Is indices
-     */
-    template<std::size_t ...Is>
-    constexpr std::array<std::size_t, sizeof...(Is)> as_array{ Is... };
-
-    template<class ...Tys>
-    struct tparams {
-        using type = info<typename tparams<Tys>::type...>;
-    };
-
-    template<class Ty> 
-    struct tparams<Ty> { 
-        using type = Ty;
-    };
-
-    template<template<class...> class T, class ...Tys>
-    struct tparams<T<Tys...>> {
-        using type = info<Tys...>;
-    };
-
-    /**
-     * Get the template parameters from a templated type.
-     * @tparam Ty templated type
-     */
-    template<class ...Tys>
-    using tparams_t = typename tparams<Tys...>::type;
-
-    template<class Ty> struct uninstantiate { using type = Ty; };
-    template<template<class...> class T, class ...Tys>
-    struct uninstantiate<T<Tys...>> {
-        using type = templated_t<T>;
-    };
-
-    /**
-     * Remove template parameters from templated type.
-     * @tparam Ty templated type
-     */
-    template<class Ty>
-    using uninstantiate_t = typename uninstantiate<Ty>::type;
-
-    template<class, class...> struct instantiate;
-
-    template<template<class...> class T, class ...Tys>
-    struct instantiate<info<Tys...>, templated_t<T>> {
-        using type = T<Tys...>;
-    };
-
-    template<template<class...> class T, class Ty>
-    struct instantiate<Ty, templated_t<T>> {
-        using type = T<Ty>;
-    };
-
-    template<class T>
-    struct instantiate<T> {
-        template<class Ty>
-        using type = instantiate<T, Ty>::type;
-    };
-
-    /**
-     * Specialize a templated type.
-     * @tparam T pack of types to instantiate with
-     * @tparam Ty templated type
-     */
-    template<class T, class Ty>
-    using instantiate_t = typename instantiate<T, Ty>::type;
-
-    template<class, class...> struct reinstantiate;
-    template<template<class...> class T, class ...Args, class Ty>
-    struct reinstantiate<Ty, T<Args...>> {
-        using type = T<Ty>;
-    };
-
-    template<template<class...> class T, class ...Args, class ...Tys>
-    struct reinstantiate<info<Tys...>, T<Args...>> {
-        using type = T<Tys...>;
-    };
-
-    template<class Ty>
-    struct reinstantiate<Ty> {
-        template<class T>
-        using type = reinstantiate<Ty, T>::type;
-    };
-
-    /**
-     * Specialize a templated type with new parameters.
-     * @tparam T pack of types to reinstantiate with
-     * @tparam Ty templated type
-     */
-    template<class T, class Ty>
-    using reinstantiate_t = typename reinstantiate<T, Ty>::type;
-
-    template<template<class...> class, class ...> struct move_tparams;
-    template<template<class...> class Ty, class T>
-    struct move_tparams<Ty, T> {
-        using type = Ty<T>;
-    };
-
-    template<template<class...> class T, class ...Args, template<class...> class Ty>
-    struct move_tparams<Ty, T<Args...>> {
-        using type = Ty<Args...>;
-    };
-
-    template<class ...Args, template<class...> class Ty>
-    struct move_tparams<Ty, template_pack<Args...>> {
-        using type = Ty<Args&&...>;
-    };
-
-    template<template<class...> class Ty>
-    struct move_tparams<Ty> {
-        template<class T>
-        using type = move_tparams<Ty, T>::type;
-    };
-
-    /**
-     * Move the template parameters from T to Ty. If T is
-     * not templated, it will itself be used as the template parameter.
-     * @tparam T type or type with template parameters
-     * @tparam Ty templated type
-     */
-    template<template<class...> class Ty, class T>
-    using move_tparams_t = typename move_tparams<Ty, T>::type;
-
     namespace pack {
+
+        // =======================================================
+
+        template<auto Array, template<std::size_t ...> class Ty>
+        struct array_to_pack {
+            template<class> struct helper;
+            template<std::size_t ...Is>
+            struct helper<std::index_sequence<Is...>> {
+                using type = Ty<Array[Is]...>;
+            };
+
+            using type = typename helper<std::make_index_sequence<Array.size()>>::type;
+        };
+
+        /**
+         * Convert an array of indices to a template pack.
+         * @tparam Array array of std::size_t
+         * @tparam Ty templated type that takes std::size_t's
+         */
+        template<auto Array, template<std::size_t ...> class Ty>
+        using array_to_pack_t = typename array_to_pack<Array, Ty>::type;
+
+        // =======================================================
+
+        /**
+         * Convert template pack of indices to an array.
+         * @tparam ...Is indices
+         */
+        template<std::size_t ...Is>
+        constexpr std::array<std::size_t, sizeof...(Is)> as_array{ Is... };
 
         // =======================================================
 
@@ -301,7 +114,7 @@ namespace kaixo {
             struct convert_to_array_impl<Array> {
                 constexpr static auto value = Array;
             };
-            
+
             template<auto ...Is>
                 requires (std::integral<decltype(Is)> && ...)
             struct convert_to_array_impl<Is...> {
@@ -320,8 +133,8 @@ namespace kaixo {
             struct convert_to_info_impl<info<Args...>> {
                 using type = info<Args...>;
             };
-            
-            template<structured_binding A>
+
+            template<concepts::structured_binding A>
             struct convert_to_info_impl<A> : convert_to_info_impl<binding_types_t<A>> {};
 
             template<class ...Args>
@@ -332,15 +145,31 @@ namespace kaixo {
             template<template<class...> class Ty, class A, class ...Args>
             struct apply_pack<Ty, A, info<Args...>> : Ty<A, Args...> {};
             template<template<class...> class Ty, class A, class B>
-                requires (!specialization<B, info> && structured_binding<B>)
+                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
             struct apply_pack<Ty, A, B> : apply_pack<Ty, A, binding_types_t<B>> {};
             
+            template<template<template<class...> class, class...> class Ty, template<class...> class A, class ...Args>
+            struct apply_pack_t : Ty<A, Args...> {};
+            template<template<template<class...> class, class...> class Ty, template<class...> class A, class ...Args>
+            struct apply_pack_t<Ty, A, info<Args...>> : Ty<A, Args...> {};
+            template<template<template<class...> class, class...> class Ty, template<class...> class A, class B>
+                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
+            struct apply_pack_t<Ty, A, B> : apply_pack_t<Ty, A, binding_types_t<B>> {};
+            
+            template<template<auto, template<class...> class, class...> class Ty, auto V, template<class...> class A, class ...Args>
+            struct apply_pack_tv : Ty<V, A, Args...> {};
+            template<template<auto, template<class...> class, class...> class Ty, auto V, template<class...> class A, class ...Args>
+            struct apply_pack_tv<Ty, V, A, info<Args...>> : Ty<V, A, Args...> {};
+            template<template<auto, template<class...> class, class...> class Ty, auto V, template<class...> class A, class B>
+                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
+            struct apply_pack_tv<Ty, V, A, B> : apply_pack_tv<Ty, V, A, binding_types_t<B>> {};
+
             template<template<class...> class Ty, class A, class B, class ...Args>
             struct apply_pack2 : Ty<A, B, Args...> {};
             template<template<class...> class Ty, class A, class B, class ...Args>
             struct apply_pack2<Ty, A, B, info<Args...>> : Ty<A, B, Args...> {};
             template<template<class...> class Ty, class A, class B, class C>
-                requires (!specialization<B, info>&& structured_binding<B>)
+                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
             struct apply_pack2<Ty, A, B, C> : apply_pack2<Ty, A, B, binding_types_t<C>> {};
 
             template<template<class...> class Ty, class ...Args>
@@ -348,7 +177,7 @@ namespace kaixo {
             template<template<class...> class Ty, class ...Args>
             struct apply_pack_d<Ty, info<Args...>> : Ty<Args...> {};
             template<template<class...> class Ty, class B>
-                requires (!specialization<B, info>&& structured_binding<B>)
+                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
             struct apply_pack_d<Ty, B> : apply_pack_d<Ty, binding_types_t<B>> {};
 
             template<template<auto, class...> class Ty, auto A, class ...Args>
@@ -356,7 +185,7 @@ namespace kaixo {
             template<template<auto, class...> class Ty, auto A, class ...Args>
             struct apply_pack_v<Ty, A, info<Args...>> : Ty<A, Args...> {};
             template<template<auto, class...> class Ty, auto A, class B>
-                requires (!specialization<B, info>&& structured_binding<B>)
+                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
             struct apply_pack_v<Ty, A, B> : apply_pack_v<Ty, A, binding_types_t<B>> {};
 
             template<template<auto, auto, class...> class Ty, auto A, auto B, class ...Args>
@@ -364,7 +193,7 @@ namespace kaixo {
             template<template<auto, auto, class...> class Ty, auto A, auto B, class ...Args>
             struct apply_pack_v2<Ty, A, B, info<Args...>> : Ty<A, B, Args...> {};
             template<template<auto, auto, class...> class Ty, auto A, auto B, class C>
-                requires (!specialization<C, info>&& structured_binding<C>)
+                requires (!concepts::specialization<C, info>&& concepts::structured_binding<C>)
             struct apply_pack_v2<Ty, A, B, C> : apply_pack_v2<Ty, A, B, binding_types_t<C>> {};
 
             template<template<auto, class, class...> class Ty, auto A, class B, class ...Args>
@@ -372,9 +201,306 @@ namespace kaixo {
             template<template<auto, class, class...> class Ty, auto A, class B, class ...Args>
             struct apply_pack_dv<Ty, A, B, info<Args...>> : Ty<A, B, Args...> {};
             template<template<auto, class, class...> class Ty, auto A, class B, class C>
-                requires (!specialization<C, info>&& structured_binding<C>)
+                requires (!concepts::specialization<C, info>&& concepts::structured_binding<C>)
             struct apply_pack_dv<Ty, A, B, C> : apply_pack_dv<Ty, A, B, binding_types_t<C>> {};
         }
+
+         // =======================================================
+
+        /**
+         * A filter object can be one of the following:
+         *  - []<class Ty>{ return ... };                      return a boolean based on type
+         *  - []<std::size_t Index, class Ty>{ return ... };   return a boolean based on index and type
+         *  - []<std::size_t Index>{ return ... };             return a boolean based on index
+         *  - []<concept constraint Ty>{};                     match concept constraint
+         *  - type_filter specialization                       type filter evaluation
+         *  - Type::value                                      std::bool_constant for example
+         *  - value == Ty::value                               a value that will be compared
+         *  - convertible_to<bool>                             any value that is convertible to bool
+         */
+        namespace detail {
+            template<class L>
+            struct filter_object_wrapper {
+                consteval filter_object_wrapper(L value) : value(value) {}
+                L value;
+            };
+
+            template<class L, std::size_t I, class Ty>
+            concept _call_type0 = requires (L l) { // Only type -> bool
+                { l.template operator() < Ty > () } -> concepts::convertible_to<bool>;
+            };
+
+            template<class L, std::size_t I, class Ty>
+            concept _call_type1 = requires (L l) { // Index, type -> bool
+                { l.template operator() < I, Ty > () } -> concepts::convertible_to<bool>;
+            };
+
+            template<class L, std::size_t I, class Ty>
+            concept _call_type2 = requires (L l) { // Only index -> bool
+                { l.template operator() < I > () } -> concepts::convertible_to<bool>;
+            };
+
+            template<class L, std::size_t I, class Ty>
+            concept _call_type3 = requires (L l) { // Type -> void (type constraint)
+                { l.template operator() < Ty > () } -> concepts::same_as<void>;
+            };
+
+            template<class L, std::size_t I, class Ty> // type filter
+            concept _call_type4 = requires (L l) { { l.template evaluate<Ty>() } -> concepts::convertible_to<bool>; };
+
+            template<class L, std::size_t I, class Ty> // Test value equality
+            concept _call_type5 = requires(L l) { { l == Ty::value } -> concepts::convertible_to<bool>; };
+        
+            template<class L, std::size_t I, class Ty> // Boolean
+            concept _call_type6 = std::convertible_to<L, bool>;
+
+            template<class L, std::size_t I, class Ty> // bool_constant
+            concept _call_type7 = requires(L l) { { L::value } -> concepts::convertible_to<bool>; };
+
+            template<class L>
+            struct filter_object : detail::filter_object_wrapper<L> {
+                template<std::size_t I, class Ty> consteval bool call() {
+                    if constexpr (detail::_call_type5<L, I, Ty>) return this->value == Ty::value;
+                    else if constexpr (detail::_call_type6<L, I, Ty>) return this->value;
+                    else if constexpr (detail::_call_type7<L, I, Ty>) return L::value;
+                    else if constexpr (detail::_call_type0<L, I, Ty>) return this->value.template operator() < Ty > ();
+                    else if constexpr (detail::_call_type1<L, I, Ty>) return this->value.template operator() < I, Ty > ();
+                    else if constexpr (detail::_call_type2<L, I, Ty>) return this->value.template operator() < I > ();
+                    else if constexpr (detail::_call_type3<L, I, Ty>) return true;
+                    else if constexpr (detail::_call_type4<L, I, Ty>) return this->value.template evaluate<Ty>();
+                    else return false; // Otherwise always return false
+                }
+            };
+
+            template<class T> filter_object(T) -> filter_object<T>;
+        }
+
+        /**
+         * Test whether Ty and optional index I match Filter.
+         * @tparam Filter filter object
+         * @tparam Ty type to filter
+         * @tparam I index of type
+         */
+        template<auto Filter, class Ty, std::size_t I = 0>
+        constexpr bool matches_filter = static_cast<bool>(detail::filter_object{ Filter }.template call<I, Ty>());
+
+        // =======================================================
+
+        template<class ...Tys>
+            requires (sizeof...(Tys) <= 1)
+        struct tparams;
+
+        template<class Ty> 
+        struct tparams<Ty> { 
+            using type = Ty;
+        };
+
+        template<template<class...> class T, class ...Tys>
+        struct tparams<T<Tys...>> {
+            using type = info<Tys...>;
+        };
+
+        template<>
+        struct tparams<> {
+            template<class ...Tys>
+            using type = tparams<Tys...>::type;
+        };
+
+        /**
+         * Get the template parameters from a templated type. 
+         * If the type does not have template parameters, the result is the type itself.
+         * @tparam Ty templated type
+         */
+        template<class ...Ty> requires (sizeof...(Ty) <= 1)
+        using tparams_t = typename tparams<Ty...>::type;
+
+        // =======================================================
+
+        template<class ...Ty> 
+            requires (sizeof...(Ty) <= 1)
+        struct uninstantiate;
+        
+        template<class Ty> 
+        struct uninstantiate<Ty> { 
+            using type = Ty; 
+            using _type = type;
+        };
+
+        template<template<class...> class T, class ...Tys>
+        struct uninstantiate<T<Tys...>> {
+            using type = templated_t<T>;
+            using _type = type;
+        };
+        
+        template<>
+        struct uninstantiate<> {
+            template<class Ty>
+            using type = uninstantiate<Ty>::type;
+            using _type = templated_t<type>;
+        };
+
+        /**
+         * Remove template parameters from templated type.
+         * @tparam Ty templated type
+         */
+        template<class ...Ty> requires (sizeof...(Ty) <= 1)
+        using uninstantiate_t = typename uninstantiate<Ty...>::_type;
+
+        // =======================================================
+
+        template<class, class...> 
+        struct instantiate;
+
+        template<template<class...> class T, class ...Tys>
+        struct instantiate<info<Tys...>, templated_t<T>> {
+            using type = T<Tys...>;
+        };
+
+        template<template<class...> class T, class Ty>
+        struct instantiate<Ty, templated_t<T>> {
+            using type = T<Ty>;
+        };
+
+        template<class T>
+        struct instantiate<T> {
+            template<class Ty>
+            using type = instantiate<T, Ty>::type;
+        };
+
+        /**
+         * Specialize a templated type.
+         * @tparam T pack of types to instantiate with
+         * @tparam Ty templated type
+         */
+        template<class T, class Ty>
+        using instantiate_t = typename instantiate<T, Ty>::type;
+
+        // =======================================================
+
+        template<class, class...> struct reinstantiate;
+        template<template<class...> class T, class ...Args, class Ty>
+        struct reinstantiate<Ty, T<Args...>> {
+            using type = T<Ty>;
+        };
+
+        template<template<class...> class T, class ...Args, class ...Tys>
+        struct reinstantiate<info<Tys...>, T<Args...>> {
+            using type = T<Tys...>;
+        };
+
+        template<class Ty>
+        struct reinstantiate<Ty> {
+            template<class T>
+            using type = reinstantiate<Ty, T>::type;
+        };
+
+        /**
+         * Specialize a templated type with new parameters.
+         * @tparam T pack of types to reinstantiate with
+         * @tparam Ty templated type
+         */
+        template<class T, class Ty>
+        using reinstantiate_t = typename reinstantiate<T, Ty>::type;
+
+        // =======================================================
+
+        template<template<class...> class, class ...T> requires (sizeof...(T) <= 1)
+        struct copy_tparams;
+
+        template<template<class...> class Ty, class T>
+        struct copy_tparams<Ty, T> {
+            using type = Ty<T>;
+            using _type = type;
+        };
+
+        template<template<class...> class T, class ...Args, template<class...> class Ty>
+        struct copy_tparams<Ty, T<Args...>> {
+            using type = Ty<Args...>;
+            using _type = type;
+        };
+
+        template<template<class...> class Ty>
+        struct copy_tparams<Ty> {
+            template<class T>
+            using type = copy_tparams<Ty, T>::type;
+            using _type = templated_t<type>;
+        };
+
+        /**
+         * Copy the template parameters from T to Ty. If T is
+         * not templated, it will itself be used as the template parameter.
+         * @tparam Ty templated type
+         * @tparam T type or type with template parameters
+         */
+        template<template<class...> class Ty, class ...T> requires (sizeof...(T) <= 1)
+        using copy_tparams_t = typename copy_tparams<Ty, T...>::type;
+
+        // =======================================================
+
+        namespace detail {
+            template<template<class...> class T, class ...Tys>
+            struct transform_impl {
+                using type = T<Tys...>;
+                using _type = type;
+            };
+        }
+
+        template<template<class...> class T, class... Tys> 
+        struct transform : detail::apply_pack_t<detail::transform_impl, T, Tys...> {};
+
+        template<template<class...> class T>
+        struct transform<T> {
+            template<class ...Tys>
+            using type = transform<T, Tys...>::type;
+            using _type = templated_t<type>;
+        };
+
+        /**
+         * Transform using T.
+         * @tparam T transform
+         */
+        template<template<class...> class T, class ...Tys>
+        using transform_t = typename transform<T, Tys...>::_type;
+
+        // =======================================================
+
+        namespace detail {
+            template<auto, template<class...> class, class, class ...>
+            struct conditional_transform_impl_base;
+            template<auto Filter, template<class...> class T, std::size_t ...Is, class ...Tys>
+                requires (matches_filter<Filter, Tys, Is> && ...)
+            struct conditional_transform_impl_base<Filter, T, std::index_sequence<Is...>, Tys...> {
+                using type = T<Tys...>;
+                using _type = type;
+            };
+            
+            template<auto Filter, template<class...> class T, std::size_t ...Is, class ...Tys>
+                requires (!(matches_filter<Filter, Tys, Is> && ...))
+            struct conditional_transform_impl_base<Filter, T, std::index_sequence<Is...>, Tys...> {
+                using type = info<Tys...>;
+                using _type = type;
+            };
+
+            template<auto Filter, template<class...> class T, class ...Tys>
+            struct conditional_transform_impl : conditional_transform_impl_base<Filter, T, std::index_sequence_for<Tys...>, Tys...>{};
+        }
+
+        template<auto Filter, template<class...> class T, class... Tys>
+        struct conditional_transform : detail::apply_pack_tv<detail::conditional_transform_impl, Filter, T, Tys...> {};
+
+        template<auto Filter, template<class...> class T>
+        struct conditional_transform<Filter, T> {
+            template<class ...Tys>
+            using type = conditional_transform<Filter, T, Tys...>::type;
+            using _type = templated_t<type>;
+        };
+
+        /**
+         * Transform using T whem Filter matches.
+         * @tparam T transform
+         */
+        template<auto Filter, template<class...> class T, class ...Tys>
+        using conditional_transform_t = typename conditional_transform<Filter, T, Tys...>::_type;
 
         // =======================================================
 
@@ -454,7 +580,7 @@ namespace kaixo {
         };
         
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct contains_all<Ty, Tys...> : contains_all<info<Ty, Tys...>> {};
 
         /**
@@ -485,7 +611,7 @@ namespace kaixo {
         };
         
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct contains_any<Ty, Tys...> : contains_any<info<Ty, Tys...>> {};
 
         /**
@@ -540,7 +666,7 @@ namespace kaixo {
         };
         
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct count_all<Ty, Tys...> : count_all<info<Ty, Tys...>> {};
 
         /**
@@ -690,7 +816,7 @@ namespace kaixo {
          */
         template<auto Filter, class ...Args>
         constexpr auto index_not_filter_v = index_not_filter<Filter, Args...>::value;
-
+        
         // =======================================================
 
         namespace detail {
@@ -719,7 +845,7 @@ namespace kaixo {
         };
 
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct indices<Ty, Tys...> : indices<info<Ty, Tys...>> {};
 
         /**
@@ -757,7 +883,7 @@ namespace kaixo {
         };
 
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct indices_except<Ty, Tys...> : indices_except<info<Ty, Tys...>> {};
 
         /**
@@ -856,7 +982,7 @@ namespace kaixo {
         };
         
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct first_index<Ty, Tys...> : first_index<info<Ty, Tys...>> {};
 
         /**
@@ -889,7 +1015,7 @@ namespace kaixo {
         };
         
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct first_indices<Ty, Tys...> : first_indices<info<Ty, Tys...>> {};
 
         /**
@@ -998,10 +1124,38 @@ namespace kaixo {
         // =======================================================
 
         namespace detail {
+            template<class ...Tys>
+            struct join_impl_base {};
+            
+            template<class ...As, class ...Bs, class ...Tys>
+            struct join_impl_base<info<As...>, info<Bs...>, Tys...>
+                : join_impl_base<info<As..., Bs...>, Tys...> {};
+            
+            template<class ...As>
+            struct join_impl_base<info<As...>> {
+                using type = info<As...>;
+                using _type = type;
+            };
 
-            // TODO: join
-
+            template<class ...Tys>
+            struct join_impl : join_impl_base<convert_to_info<Tys>...> {};
         }
+
+        template<class ...Tys>
+        struct join : detail::apply_pack_d<detail::join_impl, Tys...> {};
+
+        template<>
+        struct join<> {
+            template<class ...Tys>
+            using type = join<Tys...>::type;
+            using _type = templated_t<type>;
+        };
+
+        /**
+         * Flattens a pack of packs
+         */
+        template<class ...Tys>
+        using join_t = join<Tys...>::_type;
 
         // =======================================================
 
@@ -1057,7 +1211,7 @@ namespace kaixo {
         };
 
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct split<Ty, Tys...> : split<info<Ty, Tys...>> {};
 
         /**
@@ -1088,7 +1242,7 @@ namespace kaixo {
         };
 
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct split_after<Ty, Tys...> : split_after<info<Ty, Tys...>> {};
 
         /**
@@ -1119,7 +1273,7 @@ namespace kaixo {
         };
 
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct split_before<Ty, Tys...> : split_before<info<Ty, Tys...>> {};
 
         /**
@@ -1316,6 +1470,54 @@ namespace kaixo {
 
         namespace detail {
             template<std::size_t I, class ...Tys>
+            struct take_last_impl : sub_impl<sizeof...(Tys) - I, sizeof...(Tys), Tys...> {};
+        }
+
+        template<std::size_t I, class ...Args>
+        struct take_last : detail::apply_pack_v<detail::take_last_impl, I, Args...> {};
+
+        template<std::size_t I>
+        struct take_last<I> {
+            template<class ...Args>
+            using type = take_last<I, Args...>::type;
+            using _type = templated_t<type>;
+        };
+
+        /**
+         * Take last I.
+         * @tparam I take
+         */
+        template<std::size_t I, class ...Args>
+        using take_last_t = take_last<I, Args...>::_type;
+        
+        // =======================================================
+
+        namespace detail {
+            template<auto Filter, class ...Tys>
+            struct take_last_while_impl : reverse<typename sub_impl<0, index_not_filter_v<Filter, Tys...>, Tys...>::type> {};
+        }
+
+        template<auto Filter, class ...Args>
+        struct take_last_while : detail::apply_pack_v<detail::take_last_while_impl, Filter, reverse_t<Args...>> {};
+
+        template<auto Filter>
+        struct take_last_while<Filter> {
+            template<class ...Args>
+            using type = take_last_while<Filter, Args...>::type;
+            using _type = templated_t<type>;
+        };
+
+        /**
+         * Take last while Filter matches.
+         * @tparam I take
+         */
+        template<auto Filter, class ...Args>
+        using take_last_while_t = take_last_while<Filter, Args...>::_type;
+        
+        // =======================================================
+
+        namespace detail {
+            template<std::size_t I, class ...Tys>
             struct drop_impl : sub_impl<I, sizeof...(Tys), Tys...> {};
         }
 
@@ -1331,7 +1533,7 @@ namespace kaixo {
 
         /**
          * Drop first I.
-         * @tparam I take
+         * @tparam I drop
          */
         template<std::size_t I, class ...Args>
         using drop_t = drop<I, Args...>::_type;
@@ -1355,10 +1557,58 @@ namespace kaixo {
 
         /**
          * Drop while Filter matches.
-         * @tparam I take
+         * @tparam I drop
          */
         template<auto Filter, class ...Args>
         using drop_while_t = drop_while<Filter, Args...>::_type;
+        
+        // =======================================================
+
+        namespace detail {
+            template<std::size_t I, class ...Tys>
+            struct drop_last_impl : sub_impl<0, sizeof...(Tys) - I, Tys...> {};
+        }
+
+        template<std::size_t I, class ...Args>
+        struct drop_last : detail::apply_pack_v<detail::drop_last_impl, I, Args...> {};
+
+        template<std::size_t I>
+        struct drop_last<I> {
+            template<class ...Args>
+            using type = drop_last<I, Args...>::type;
+            using _type = templated_t<type>;
+        };
+
+        /**
+         * Drop last I.
+         * @tparam I drop
+         */
+        template<std::size_t I, class ...Args>
+        using drop_last_t = drop_last<I, Args...>::_type;
+        
+        // =======================================================
+
+        namespace detail {
+            template<auto Filter, class ...Tys>
+            struct drop_last_while_impl : reverse<typename sub_impl<index_not_filter_v<Filter, Tys...>, sizeof...(Tys), Tys...>::type> {};
+        }
+
+        template<auto Filter, class ...Args>
+        struct drop_last_while : detail::apply_pack_v<detail::drop_last_while_impl, Filter, reverse_t<Args...>> {};
+
+        template<auto Filter>
+        struct drop_last_while<Filter> {
+            template<class ...Args>
+            using type = drop_last_while<Filter, Args...>::type;
+            using _type = templated_t<type>;
+        };
+
+        /**
+         * Drop last while Filter matches.
+         * @tparam I drop
+         */
+        template<auto Filter, class ...Args>
+        using drop_last_while_t = drop_last_while<Filter, Args...>::_type;
 
         // =======================================================
 
@@ -1519,7 +1769,7 @@ namespace kaixo {
         };
 
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct append<Ty, Tys...> : append<info<Ty, Tys...>> {};
 
         /**
@@ -1553,7 +1803,7 @@ namespace kaixo {
         };
 
         template<class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct prepend<Ty, Tys...> : prepend<info<Ty, Tys...>> {};
 
         /**
@@ -1565,6 +1815,44 @@ namespace kaixo {
 
         // =======================================================
 
+        namespace detail {
+            template<class, class>
+            struct erase_impl_base;
+
+            template<class ...As, class ...Bs>
+            struct erase_impl_base<info<As...>, info<Bs...>> {
+                using type = info<As..., Bs...>;
+            };
+
+            template<std::size_t I, class...Tys>
+            struct erase_impl {
+                using _a = sub_impl<0, I, Tys...>::type;
+                using _b = sub_impl<I + 1, sizeof...(Tys), Tys...>::type;
+
+                using type = erase_impl_base<_a, _b>::type;
+                using _type = type;
+            };
+        }
+
+        template<std::size_t I, class ...Tys>
+        struct erase : detail::apply_pack_v<detail::erase_impl, I, Tys...> {};
+
+        template<std::size_t I>
+        struct erase<I> {
+            template<class ...Tys>
+            using type = erase<I, Tys...>::type;
+            using _type = templated_t<type>;
+        };
+
+        /**
+         * Erase index I.
+         * @tparam I index
+         */
+        template<std::size_t I, class ...Tys>
+        using erase_t = erase<I, Tys...>::type;
+
+        // =======================================================
+        
         namespace detail {
             template<class, class, class>
             struct insert_impl_base;
@@ -1593,12 +1881,12 @@ namespace kaixo {
         template<std::size_t I, class Ty>
         struct insert<I, Ty> {
             template<class ...Tys>
-            using type = prepend<Ty, Tys...>::type;
+            using type = insert<I, Ty, Tys...>::type;
             using _type = templated_t<type>;
         };
 
         template<std::size_t I, class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct insert<I, Ty, Tys...> : insert<I, info<Ty, Tys...>> {};
 
         /**
@@ -1609,6 +1897,34 @@ namespace kaixo {
         template<std::size_t I, class Ty, class ...Tys>
         using insert_t = insert<I, Ty, Tys...>::type;
 
+        // =======================================================
+
+        namespace detail {
+            template<std::size_t I, class R, class ...Tys>
+            struct swap_impl {
+                using type = apply_pack_dv<insert_impl, I, R, typename erase_impl<I, Tys...>::type>::type;
+                using _type = type;
+            };
+        }
+
+        template<std::size_t I, class R, class ...Tys>
+        struct swap : detail::apply_pack_dv<detail::swap_impl, I, R, Tys...> {};
+
+        template<std::size_t I, class R>
+        struct swap<I, R> {
+            template<class ...Tys>
+            using type = swap<I, R, Tys...>::type;
+            using _type = templated_t<type>;
+        };
+        
+        /**
+         * Swap index I with R.
+         * @tparam I index
+         * @tparam R replacement
+         */
+        template<std::size_t I, class R, class ...Tys>
+        using swap_t = swap<I, R, Tys...>::_type;
+        
         // =======================================================
 
         namespace detail {
@@ -1636,9 +1952,14 @@ namespace kaixo {
         };
         
         template<class R, class Ty, class ...Tys>
-            requires (!specialization<Ty, info>)
+            requires (!concepts::specialization<Ty, info>)
         struct replace<R, Ty, Tys...> : replace<R, info<Ty, Tys...>> {};
 
+        /**
+         * Replace Ty with R, requires Ty is specialization of info.
+         * @tparam R replacement
+         * @tparam Ty types
+         */
         template<class R, class Ty, class ...Tys>
         using replace_t = replace<R, Ty, Tys...>::_type;
 
@@ -1807,7 +2128,7 @@ namespace kaixo {
         template<std::size_t ...Is> struct helper {
             using type = typename _first::template reinstantiate<info<at_index<Is>...>>::type;
         };
-        using type = array_to_pack_t < generate_indices_v < 0, std::min({ info<As>::tparams::size... }) > , helper > ::type;
+        using type = pack::array_to_pack_t < generate_indices_v < 0, std::min({ info<As>::tparams::size... }) > , helper > ::type;
     };
 
     template<class A> struct zip<A> { using type = A; };
@@ -1863,56 +2184,4 @@ namespace kaixo {
     template<class ...Tys>
     using cartesian_t = typename cartesian<Tys...>::type;
 
-    template<template<class...> class, class...> struct transform;
-
-    template<template<class...> class T, class Ty>
-    struct transform<T, Ty> { using type = T<Ty>; };
-
-    template<template<class...> class T, class ...As>
-    struct transform<T, info<As...>> { using type = info<T<As>...>; };
-
-    template<template<class...> class T>
-    struct transform<T> { 
-        template<class Ty>
-        using type = transform<T, Ty>::type; 
-    };
-
-
-    /**
-     * Transform Ty using T.
-     * @tparam T transform
-     * @tparam Ty type
-     */
-    template<template<class...> class T, class Ty>
-    using transform_t = typename transform<T, Ty>::type;
-
-    template<auto, template<class...> class, class...>
-    struct conditional_transform;
-    
-    template<auto Filter, template<class...> class T, class Ty>
-    struct conditional_transform<Filter, T, Ty> { using type = Ty; };
-
-    template<auto Filter, template<class...> class T, class Ty>
-        requires matches_filter<Filter, Ty>
-    struct conditional_transform<Filter, T, Ty> { using type = T<Ty>; };
-
-    template<auto Filter, template<class...> class T, class ...As>
-    struct conditional_transform<Filter, T, info<As...>> {
-        using type = info<typename conditional_transform<Filter, T, As>::type...>;
-    };
-
-    template<auto Filter, template<class...> class T>
-    struct conditional_transform<Filter, T> { 
-        template<class Ty>
-        using type = conditional_transform<Filter, T, Ty>::type; 
-    };
-
-    /**
-     * Conditionally transform Ty using T if matched Filter.
-     * @tparam Filter filter
-     * @tparam T transform
-     * @tparam Ty type
-     */
-    template<auto Filter, template<class...> class T, class Ty>
-    using conditional_transform_t = typename conditional_transform<Filter, T, Ty>::type;
 }

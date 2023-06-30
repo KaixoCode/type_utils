@@ -46,13 +46,13 @@ namespace kaixo {
      * Find amount of members in a struct.
      * @tparam Ty struct
      */
-    template<aggregate Ty>
+    template<concepts::aggregate Ty>
     constexpr std::size_t struct_size_v = struct_size<Ty>::value;
 
     template<class Ty> struct binding_size;
-    template<aggregate Ty> 
+    template<concepts::aggregate Ty>
     struct binding_size<Ty> : std::integral_constant<std::size_t, struct_size_v<Ty>> {};
-    template<structured_binding Ty>
+    template<concepts::structured_binding Ty>
     struct binding_size<Ty> : std::integral_constant<std::size_t, std::tuple_size_v<Ty>> {};
 
     /**
@@ -234,35 +234,35 @@ namespace kaixo {
      * Find member types of a struct, uses a macro to define
      * overloads up to 99 members using structured bindings.
      */
-    template<aggregate Ty>
+    template<concepts::aggregate Ty>
     struct struct_members : binding_types_impl<Ty, struct_size_v<Ty>> {};
 
     /**
      * Find the member types of a struct.
      * @tparam Ty struct
      */
-    template<aggregate Ty>
+    template<concepts::aggregate Ty>
     using struct_members_t = typename struct_members<Ty>::type;
 
     /**
      * Find the types of structured bindings.
      * @tparam Ty type
      */
-    template<structured_binding Ty>
+    template<concepts::structured_binding Ty>
     struct binding_types : binding_types_impl<Ty, binding_size_v<Ty>> {};
 
     /**
      * Get the types of the structured binding elements of Ty.
      * @tparam Ty type
      */
-    template<structured_binding Ty>
+    template<concepts::structured_binding Ty>
     using binding_types_t = typename binding_types<Ty>::type;
 
 #define KAIXO_DECLTYPE2(x) decltype(x)
     KAIXO_MAKE_UNIQUE(KAIXO_STRUCT_GET_MEMBERS_M, 99, KAIXO_DECLTYPE2);
 
     template<std::size_t I, class Ty>
-        requires structured_binding<std::decay_t<Ty>>
+        requires concepts::structured_binding<std::decay_t<Ty>>
     constexpr auto&& get_binding_element(Ty&& value) {
         using type = std::decay_t<Ty>;
         using get_member = binding_get_member<binding_size_v<type>>;

@@ -30,7 +30,7 @@ namespace kaixo {
      * Specialization for types that define structured binding.
      */
     template<class ...Tys>
-        requires ((structured_binding<Tys> && ...) && ((!array<Tys> && !aggregate<Tys>) && ...))
+        requires ((concepts::structured_binding<Tys> && ...) && ((!concepts::array<Tys> && !concepts::aggregate<Tys>) && ...))
     struct specialized_info<Tys...> {
         using _selected_specialization = _s_binding;
 
@@ -47,56 +47,56 @@ namespace kaixo {
 
     template<class ...Tys> requires (sizeof...(Tys) > 1)
         struct specialized_info_fun0<Tys...> {
-        using arguments = info<typename function_info<Tys>::arguments...>;
+        using arguments = info<typename detail::function_info<Tys>::arguments...>;
     };
 
     template<class Ty>
     struct specialized_info_fun0<Ty> {
-        using arguments = typename function_info<Ty>::arguments;
+        using arguments = typename detail::function_info<Ty>::arguments;
     };
 
     template<class ...Tys>
     struct specialized_info_fun1 : specialized_info_fun0<Tys...> {
-        using pointer = info<typename function_info<Tys>::pointer...>;
-        using signature = info<typename function_info<Tys>::signature...>;
-        using result = info<typename function_info<Tys>::result...>;
+        using pointer = info<typename detail::function_info<Tys>::pointer...>;
+        using signature = info<typename detail::function_info<Tys>::signature...>;
+        using result = info<typename detail::function_info<Tys>::result...>;
 
-        using is_noexcept = info<value_t<function_info<Tys>::is_noexcept>...>;
+        using is_noexcept = info<value_t<detail::function_info<Tys>::is_noexcept>...>;
 
-        using add_noexcept = info<typename function_info<Tys>::add_noexcept...>;
-        using remove_noexcept = info<typename function_info<Tys>::remove_noexcept...>;
-        using fun_decay = info<typename function_info<Tys>::fun_decay...>;
+        using add_noexcept = info<typename detail::function_info<Tys>::add_noexcept...>;
+        using remove_noexcept = info<typename detail::function_info<Tys>::remove_noexcept...>;
+        using fun_decay = info<typename detail::function_info<Tys>::fun_decay...>;
     };
 
     template<class ...Tys>
     struct specialized_info_fun2 : specialized_info_fun1<Tys...> {
-        using is_fun_const = info<value_t<function_info<Tys>::is_fun_const>...>;
-        using is_fun_mutable = info<value_t<function_info<Tys>::is_fun_mutable>...>;
-        using is_fun_volatile = info<value_t<function_info<Tys>::is_fun_volatile>...>;
-        using is_fun_lvalue_reference = info<value_t<function_info<Tys>::is_fun_lvalue_reference>...>;
-        using is_fun_rvalue_reference = info<value_t<function_info<Tys>::is_fun_rvalue_reference>...>;
-        using is_fun_reference = info<value_t<function_info<Tys>::is_fun_reference>...>;
+        using is_fun_const = info<value_t<detail::function_info<Tys>::is_fun_const>...>;
+        using is_fun_mutable = info<value_t<detail::function_info<Tys>::is_fun_mutable>...>;
+        using is_fun_volatile = info<value_t<detail::function_info<Tys>::is_fun_volatile>...>;
+        using is_fun_lvalue_reference = info<value_t<detail::function_info<Tys>::is_fun_lvalue_reference>...>;
+        using is_fun_rvalue_reference = info<value_t<detail::function_info<Tys>::is_fun_rvalue_reference>...>;
+        using is_fun_reference = info<value_t<detail::function_info<Tys>::is_fun_reference>...>;
 
-        using add_fun_const = info<typename function_info<Tys>::add_fun_const...>;
-        using remove_fun_const = info<typename function_info<Tys>::remove_fun_const...>;
-        using add_fun_volatile = info<typename function_info<Tys>::add_fun_volatile...>;
-        using remove_fun_volatile = info<typename function_info<Tys>::remove_fun_volatile...>;
-        using add_fun_cv = info<typename function_info<Tys>::add_fun_cv...>;
-        using remove_fun_cv = info<typename function_info<Tys>::remove_fun_cv...>;
-        using add_fun_lvalue_reference = info<typename function_info<Tys>::add_fun_lvalue_reference...>;
-        using add_fun_rvalue_reference = info<typename function_info<Tys>::add_fun_rvalue_reference...>;
-        using remove_fun_reference = info<typename function_info<Tys>::remove_fun_reference...>;
-        using remove_fun_cvref = info<typename function_info<Tys>::remove_fun_cvref...>;
+        using add_fun_const = info<typename detail::function_info<Tys>::add_fun_const...>;
+        using remove_fun_const = info<typename detail::function_info<Tys>::remove_fun_const...>;
+        using add_fun_volatile = info<typename detail::function_info<Tys>::add_fun_volatile...>;
+        using remove_fun_volatile = info<typename detail::function_info<Tys>::remove_fun_volatile...>;
+        using add_fun_cv = info<typename detail::function_info<Tys>::add_fun_cv...>;
+        using remove_fun_cv = info<typename detail::function_info<Tys>::remove_fun_cv...>;
+        using add_fun_lvalue_reference = info<typename detail::function_info<Tys>::add_fun_lvalue_reference...>;
+        using add_fun_rvalue_reference = info<typename detail::function_info<Tys>::add_fun_rvalue_reference...>;
+        using remove_fun_reference = info<typename detail::function_info<Tys>::remove_fun_reference...>;
+        using remove_fun_cvref = info<typename detail::function_info<Tys>::remove_fun_cvref...>;
     };
 
     template<class ...Tys>
-        requires ((callable_type<Tys> && ...) && (pointer<Tys> || ...))
+        requires ((detail::callable_type<Tys> && ...) && (concepts::pointer<Tys> || ...))
     struct specialized_info<Tys...> : specialized_info_fun1<Tys...> {
         using _selected_specialization = _s_fun_ptr;
     };
 
     template<class ...Tys>
-        requires ((callable_type<Tys> && ...) && (!pointer<Tys> && ...))
+        requires ((detail::callable_type<Tys> && ...) && (!concepts::pointer<Tys> && ...))
     struct specialized_info<Tys...> : specialized_info_fun2<Tys...> {
         using _selected_specialization = _s_fun;
     };
@@ -107,7 +107,7 @@ namespace kaixo {
      * Also inherits from std::numeric_limits<Ty>
      */
     template<class ...Tys>
-        requires ((integral<Tys> && !boolean<Tys>) && ...)
+        requires ((concepts::integral<Tys> && !concepts::boolean<Tys>) && ...)
     struct specialized_info<Tys...> {
         using _selected_specialization = _s_integral;
 
@@ -120,7 +120,7 @@ namespace kaixo {
      * from std::numeric_limits<Ty>
      */
     template<class Ty, class ...Tys>
-        requires (floating_point<Ty> && (same_as<Ty, Tys> && ...))
+        requires (concepts::floating_point<Ty> && (concepts::same_as<Ty, Tys> && ...))
     struct specialized_info<Ty, Tys...> : std::numeric_limits<Ty> {
         using _selected_specialization = _s_floating;
     };
@@ -130,7 +130,7 @@ namespace kaixo {
      * type, and enum names.
      */
     template<class ...Tys>
-        requires (enum_type<Tys> && ...)
+        requires (concepts::enum_type<Tys> && ...)
     struct specialized_info<Tys...> {
         using _selected_specialization = _s_enum;
 
@@ -148,7 +148,7 @@ namespace kaixo {
      * contains the 'object' and 'value_type'
      */
     template<class ...Tys, class ...Objs>
-        requires member_object_pointer<Tys Objs::*...>
+        requires concepts::member_object_pointer<Tys Objs::*...>
     struct specialized_info<Tys Objs::*...> {
         using _selected_specialization = _s_memfun;
 
@@ -161,7 +161,7 @@ namespace kaixo {
      * contains rank/extent traits.
      */
     template<class ...Tys>
-        requires (array<Tys> && ...)
+        requires (concepts::array<Tys> && ...)
     struct specialized_info<Tys...> {
         using _selected_specialization = _s_array;
 
@@ -178,7 +178,7 @@ namespace kaixo {
      * Specialization for structs, contains information on members.
      */
     template<class ...Tys>
-        requires ((aggregate<Tys> && ...) && (!array<Tys> && ...))
+        requires ((concepts::aggregate<Tys> && ...) && (!concepts::array<Tys> && ...))
     struct specialized_info<Tys...> {
         using _selected_specialization = _s_aggregate;
 
@@ -214,7 +214,7 @@ namespace kaixo {
         using _selected_specialization = _s_templated;
 
         template<class Arg>
-        using instantiate = info<instantiate_t<Arg, Tys>...>;
+        using instantiate = info<pack::instantiate_t<Arg, Tys>...>;
     };
 
     template<class ...T>
@@ -243,10 +243,27 @@ namespace kaixo {
 
     template<class ...Tys>
     struct info : info_base<Tys...> {
-        constexpr static auto size = sizeof...(Tys);
-        constexpr static auto unique_size = pack::count_unique_v<Tys...>;
+        constexpr static std::size_t size = sizeof...(Tys);
+        constexpr static std::size_t unique_size = pack::count_unique_v<Tys...>;
+        constexpr static std::size_t count_unique = unique_size;
 
         using bytes = info<value_t<sizeof_v<Tys>>...>;
+
+        using uninstantiate = info<pack::uninstantiate_t<Tys>...>;
+        using tparams = info<pack::tparams_t<Tys>...>;
+        template<class Arg> using reinstantiate = info<pack::reinstantiate_t<Arg, Tys>...>;
+        template<class Arg> using instantiate = info<pack::instantiate_t<Arg, Tys>...>;
+        template<template<class...> class T> using transform = info<pack::transform_t<T, Tys>...>;
+        template<template<class...> class T> using as = T<Tys...>;
+
+        constexpr static auto for_each = []<class Ty>(Ty && lambda) {
+            return lambda.operator() < Tys... > ();
+        };
+
+        template<auto Filter> struct when {
+            template<template<class...> class T>
+            using transform = pack::conditional_transform_t<Filter, T, info>;
+        };
 
         template<class Ty> struct _element_is_info { using type = info<Ty>; };
         template<class ...Tys> struct _element_is_info<info<Tys...>> { using type = info<Tys...>; };
@@ -270,7 +287,7 @@ namespace kaixo {
 
         using reverse = pack::reverse_t<info<Tys...>>;
         using unique = pack::unique_t<info<Tys...>>;
-        //using join = pack::join_t<info<Tys...>>;
+        using join = pack::join_t<info<Tys...>>;
         
         template<class   ...As> using split = pack::split_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
         template<class   ...As> using split_after = pack::split_after_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
@@ -283,39 +300,27 @@ namespace kaixo {
         template<auto   Filter> using take_while = pack::take_while_t<Filter, info<Tys...>>;
         template<std::size_t I> using drop = pack::drop_t<I, info<Tys...>>;
         template<auto   Filter> using drop_while = pack::drop_while_t<Filter, info<Tys...>>;
+        template<std::size_t I> using take_last = pack::take_last_t<I, info<Tys...>>;
+        template<auto   Filter> using take_last_while = pack::take_last_while_t<Filter, info<Tys...>>;
+        template<std::size_t I> using drop_last = pack::drop_last_t<I, info<Tys...>>;
+        template<auto   Filter> using drop_last_while = pack::drop_last_while_t<Filter, info<Tys...>>;
         template<auto    ...Is> using keep_indices = pack::keep_indices_t<pack::detail::convert_to_array<Is...>, info<Tys...>>;
         template<class   ...As> using keep = pack::keep_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
         template<auto    ...Is> using remove_indices = pack::remove_indices_t<pack::detail::convert_to_array<Is...>, info<Tys...>>;
         template<class   ...As> using remove = pack::remove_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
         template<class   ...As> using append = pack::append_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
         template<class   ...As> using prepend = pack::prepend_t<pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<std::size_t I> using erase = pack::erase_t<I, info<Tys...>>;
         template<std::size_t I, class   ...As> using insert = pack::insert_t<I, pack::detail::convert_to_info<As...>, info<Tys...>>;
+        template<std::size_t I, class       R> using swap = pack::swap_t<I, R, info<Tys...>>;
         template<class       R, class   ...As> using replace = pack::replace_t<R, pack::detail::convert_to_info<As...>, info<Tys...>>;
         template<class       R, auto   Filter> using replace_filter = pack::replace_filter_t<R, Filter, info<Tys...>>;
+        template<auto   Filter> using filter = pack::filter_t<Filter, info<Tys...>>;
         template<auto   Sorter> using sort = pack::sort_t<Sorter, info<Tys...>>;
-
-        using uninstantiate = info<uninstantiate_t<Tys>...>;
-        using tparams = tparams_t<Tys...>;
-
-        template<class Arg> using reinstantiate = info<reinstantiate_t<Arg, Tys>...>;
-        template<class Arg> using instantiate = info<instantiate_t<Arg, Tys>...>;
-
-        template<template<class...> class T> using transform = transform_t<T, info>;
-        template<template<class...> class T> using as = T<Tys...>;
-        template<auto Filter> using filter = pack::filter_t<Filter, info<Tys...>>;
-
-        constexpr static auto for_each = []<class Ty>(Ty && lambda) {
-            return lambda.operator() < Tys... > ();
-        };
 
         template<class ...Args> using concat = concat_t<info, Args...>;
         template<class ...Args> using zip = zip_t<info, Args...>;
         template<class ...Args> using cartesian = cartesian_t<info, Args...>;
-
-        template<auto Filter> struct when {
-            template<template<class...> class T>
-            using transform = conditional_transform_t<Filter, T, info>;
-        };
 
         using is_void = info<value_t<std::is_void_v<Tys>>...>;
         using is_null_pointer = info<value_t<std::is_null_pointer_v<Tys>>...>;
@@ -484,5 +489,5 @@ namespace kaixo {
      * @tparam Ty templated type
      */
     template<class Ty>
-    using as_info = move_tparams_t<info, decay_t<Ty>>;
+    using as_info = pack::copy_tparams_t<info, decay_t<Ty>>;
 }

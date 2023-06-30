@@ -369,8 +369,18 @@ namespace kaixo {
         else return string_literal<name.size() + 1>{ name };
     }();
 
-    template<class Ty>
-    using sizeof_impl = std::integral_constant<std::size_t, sizeof(Ty)>;
+    namespace detail {
+        template<class Ty>
+        using sizeof_impl = std::integral_constant<std::size_t, sizeof(Ty)>;
+
+        template<class Ty>
+        using alignof_impl = std::integral_constant<std::size_t, std::alignment_of_v<Ty>>;
+
+        template<class Ty, class ...Tys>
+        struct _algn_fst {
+            using type = Ty;
+        };
+    }
 
     /**
      * Basically sizeof(Ty), but special case for
@@ -379,18 +389,15 @@ namespace kaixo {
     template<class ...Ty>
         requires (sizeof...(Ty) <= 1)
     constexpr auto sizeof_v = [] {
-        if constexpr (sizeof...(Ty) == 0) return type_filter<sizeof_impl>{};
+        if constexpr (sizeof...(Ty) == 0) return type_filter<detail::sizeof_impl>{};
         else {
-            using type = std::tuple_element_t<0, std::tuple<Ty...>>;
+            using type = detail::_algn_fst<Ty...>::type;
             if constexpr (std::is_void_v<type>) return 0;
             else if constexpr (std::is_function_v<type>) return 0;
             else if constexpr (std::is_array_v<type> && std::extent_v<type> == 0) return 0;
             else return sizeof(type);
         }
     }();
-
-    template<class Ty>
-    using alignof_impl = std::integral_constant<std::size_t, std::alignment_of_v<Ty>>;
 
     /**
      * Basically alignof(Ty), but special case for
@@ -399,9 +406,9 @@ namespace kaixo {
     template<class ...Ty>
         requires (sizeof...(Ty) <= 1)
     constexpr auto alignof_v = [] {
-        if constexpr (sizeof...(Ty) == 0) return type_filter<alignof_impl>{};
+        if constexpr (sizeof...(Ty) == 0) return type_filter<detail::alignof_impl>{};
         else {
-            using type = std::tuple_element_t<0, std::tuple<Ty...>>;
+            using type = detail::_algn_fst<Ty...>::type;
             if constexpr (std::is_void_v<type>) return 0;
             else if constexpr (std::is_function_v<type>) return 0;
             else return std::alignment_of_v<type>;

@@ -30,12 +30,9 @@ TYPE(128ull, KAIXO_SC128(CASE, 0ull)) \
 TYPE(256ull, KAIXO_SC256(CASE, 0ull)) \
 TYPE(512ull, KAIXO_SC512(CASE, 0ull))
 
-    /**
-     * Cases switch, has a unique lambda for all
-     * the cases.
-     */
-    template<std::size_t I>
-    struct cases_switch_impl;
+    namespace detail {
+        template<std::size_t I>
+        struct cases_switch_impl;
 
 #define KAIXO_CASES_SWITCH_C(i) case transform(i):      \
 if constexpr (i < sizeof...(Args)) {                    \
@@ -57,9 +54,10 @@ constexpr static auto handle(Args&& ...cases) {                  \
 }                                                                \
 };
 
-    KAIXO_SWITCH_IMPL(KAIXO_CASES_SWITCH_S, KAIXO_CASES_SWITCH_C)
+        KAIXO_SWITCH_IMPL(KAIXO_CASES_SWITCH_S, KAIXO_CASES_SWITCH_C)
 #undef KAIXO_CASES_SWITCH_S
 #undef KAIXO_CASES_SWITCH_C
+    }
 
     /**
      * Generate a switch statement with lambdas as cases.
@@ -67,18 +65,15 @@ constexpr static auto handle(Args&& ...cases) {                  \
      * @param cases... functors, either invocable with case value, or nothing
      * @return generated switch
      */
-    template<auto transform = unit>
+    template<auto transform = function::unit>
     constexpr auto generate_switch = []<class ...Functors>(Functors&& ...cases) {
         constexpr auto p2 = closest_larger_power2(sizeof...(Functors));
-        return cases_switch_impl<p2>::template handle<transform>(std::forward<Functors>(cases)...);
+        return detail::cases_switch_impl<p2>::template handle<transform>(std::forward<Functors>(cases)...);
     };
 
-    /**
-     * Templated switch statement, where the
-     * argument will be converted into a template parameter value.
-     */
-    template<std::size_t I>
-    struct template_switch_impl;
+    namespace detail {
+        template<std::size_t I>
+        struct template_switch_impl;
 
 #define KAIXO_TEMPLATE_SWITCH_C(i) case transform(i):  \
 if constexpr (i < cases) {                             \
@@ -96,9 +91,10 @@ constexpr static auto handle(Arg&& functor) {                    \
 }                                                                \
 };
 
-    KAIXO_SWITCH_IMPL(KAIXO_TEMPLATE_SWITCH_S, KAIXO_TEMPLATE_SWITCH_C)
+        KAIXO_SWITCH_IMPL(KAIXO_TEMPLATE_SWITCH_S, KAIXO_TEMPLATE_SWITCH_C)
 #undef KAIXO_TEMPLATE_SWITCH_S
 #undef KAIXO_TEMPLATE_SWITCH_C
+    }
 
     /**
      * Generate a template switch statement, takes a single
@@ -107,9 +103,9 @@ constexpr static auto handle(Arg&& functor) {                    \
      * @tparam transform transform the case index
      * @return generated template switch
      */
-    template<std::unsigned_integral auto cases, auto transform = unit>
+    template<std::unsigned_integral auto cases, auto transform = function::unit>
     constexpr auto generate_template_switch = []<class Arg>(Arg && functor) {
         constexpr auto p2 = closest_larger_power2(cases);
-        return template_switch_impl<p2>::template handle<cases, transform>(std::forward<Arg>(functor));
+        return detail::template_switch_impl<p2>::template handle<cases, transform>(std::forward<Arg>(functor));
     };
 }

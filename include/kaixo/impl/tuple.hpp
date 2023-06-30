@@ -41,7 +41,7 @@ namespace kaixo {
         template<class Ty>
         struct _tpl_ref {
             template<class T>
-            using type = std::conditional_t<!reference<T>, add_cvref_t<T, Ty>, T>;
+            using type = std::conditional_t<!concepts::reference<T>, add_cvref_t<T, Ty>, T>;
         };
 
         template<class Self>
@@ -49,7 +49,7 @@ namespace kaixo {
             
             constexpr auto as_tuple() {
                 using decayed_tuple = typename Self::types
-                    ::template when<is_rvalue_reference>
+                    ::template when<type_traits::is_rvalue_reference>
                         ::template transform<remove_reference_t>
                     ::template transform<grab::decayed_tuple>
                     ::template as<std::tuple>;
@@ -65,7 +65,7 @@ namespace kaixo {
         concept view = std::derived_from<decay_t<Ty>, view_interface<decay_t<Ty>>>;
 
         template<class Ty, class T>
-        concept pipe = invocable<decay_t<Ty>, T> && requires() {
+        concept pipe = concepts::invocable<decay_t<Ty>, T> && requires() {
             typename decay_t<Ty>::tuple_pipe;
         };
 
@@ -78,7 +78,7 @@ namespace kaixo {
                 : captures(std::forward<Args>(args)...) {}
 
             template<class Self, class Ty>
-                requires invocable<Fn, Ty, decltype(std::forward_like<Self>(std::declval<Captures>()))...>
+                requires concepts::invocable<Fn, Ty, decltype(std::forward_like<Self>(std::declval<Captures>()))...>
             constexpr decltype(auto) operator()(this Self&& self, Ty&& arg) {
                 return sequence<sizeof...(Captures)>([&]<std::size_t ...Is>{
                     return Fn{}(std::forward<Ty>(arg), std::get<Is>(std::forward<Self>(self).captures)...);
@@ -113,7 +113,7 @@ namespace std {
 namespace kaixo::tuples {
 
     template<class T, pipe<T> Ty>
-        requires (structured_binding<decay_t<T>> || view<T>)
+        requires (concepts::structured_binding<decay_t<T>> || view<T>)
     constexpr decltype(auto) operator|(T&& tuple, Ty&& val) {
         return std::forward<Ty>(val)(std::forward<T>(tuple));
     }
@@ -125,7 +125,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Ty> 
-            requires (structured_binding<decay_t<Ty>> || view<Ty>)
+            requires (concepts::structured_binding<decay_t<Ty>> || view<Ty>)
         constexpr decltype(auto) operator()(Ty&& tuple) const {
             if constexpr (view<Ty>) {
                 using type = decay_t<Ty>::types                    
@@ -156,7 +156,7 @@ namespace kaixo::tuples {
     // =======================================================
 
     template<class Ty>
-        requires structured_binding<decay_t<Ty>>
+        requires concepts::structured_binding<decay_t<Ty>>
     struct owning_view : view_interface<owning_view<Ty>> {
         using types = binding_types_t<decay_t<Ty>>;
 
@@ -174,13 +174,13 @@ namespace kaixo::tuples {
     // =======================================================
 
     template<class Ty>
-        requires structured_binding<remove_const_t<Ty>>
+        requires concepts::structured_binding<remove_const_t<Ty>>
     struct ref_view : view_interface<ref_view<Ty>> {
         using types = binding_types_t<decay_t<Ty>>;
 
         Ty* value;
 
-        template<convertible_to<Ty&> T>
+        template<concepts::convertible_to<Ty&> T>
         constexpr ref_view(T&& tpl)
             : value(std::addressof(static_cast<Ty&>(std::forward<T>(tpl)))) {}
 
@@ -199,11 +199,11 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (view<Tpl>) {
                 return std::forward<Tpl>(val);
-            } else if constexpr (lvalue_reference<Tpl>) {
+            } else if constexpr (concepts::lvalue_reference<Tpl>) {
                 return ref_view{ std::forward<Tpl>(val) };
             } else {
                 return owning_view{ std::forward<Tpl>(val) };
@@ -225,7 +225,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr take_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -240,7 +240,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
         
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (I == 0) {
                 return empty_view{};
@@ -263,7 +263,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr drop_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -278,7 +278,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (I >= all_t<Tpl>::types::size) {
                 return empty_view{};
@@ -301,7 +301,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr last_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -316,7 +316,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (I == 0) {
                 return empty_view{};
@@ -338,7 +338,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr drop_last_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -353,7 +353,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (I >= all_t<Tpl>::types::size) {
                 return empty_view{};
@@ -372,11 +372,11 @@ namespace kaixo::tuples {
     template<view Tpl, std::size_t ...Is>
         requires ((Is < all_t<Tpl>::types::size) && ...)
     struct erase_view : view_interface<erase_view<Tpl, Is...>> {
-        using types = decay_t<Tpl>::types::template remove_indices<as_array<Is...>>;
+        using types = decay_t<Tpl>::types::template remove_indices<pack::as_array<Is...>>;
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr erase_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -396,7 +396,7 @@ namespace kaixo::tuples {
                 && ((Is < all_t<Tpl>::types::size) && ...))
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (all_t<Tpl>::types
-                ::template remove_indices<as_array<Is...>>::size == 0) {
+                ::template remove_indices<pack::as_array<Is...>>::size == 0) {
                 return empty_view{};
             } else {
                 return erase_view<all_t<Tpl>, Is...>{ std::forward<Tpl>(val) };
@@ -417,7 +417,7 @@ namespace kaixo::tuples {
         std::tuple<Args...> args;
         Tpl tpl;
 
-        template<class T, class A> requires constructible<Tpl, T&&>
+        template<class T, class A> requires concepts::constructible<Tpl, T&&>
         constexpr insert_view(T&& v, A&& args) 
             : args(std::forward<A>(args)), tpl(std::forward<T>(v)) {}
 
@@ -466,7 +466,7 @@ namespace kaixo::tuples {
         Arg arg;
         Tpl tpl;
 
-        template<class T, class A> requires constructible<Tpl, T&&>
+        template<class T, class A> requires concepts::constructible<Tpl, T&&>
         constexpr swap_view(T&& v, A&& arg)
             : arg(std::forward<A>(arg)), tpl(std::forward<T>(v)) {}
 
@@ -514,7 +514,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr sub_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -551,7 +551,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr remove_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -568,7 +568,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (all_t<Tpl>::types::decay::template remove<typename info<Args...>::decay>::size == 0) {
                 return empty_view{};
@@ -589,7 +589,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr remove_raw_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -606,7 +606,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (all_t<Tpl>::types::template remove<info<Args...>>::size == 0) {
                 return empty_view{};
@@ -627,7 +627,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr keep_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -644,7 +644,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (all_t<Tpl>::types::decay::template keep<typename info<Args...>::decay>::size == 0) {
                 return empty_view{};
@@ -665,7 +665,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr keep_raw_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -682,7 +682,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (all_t<Tpl>::types::template keep<info<Args...>>::size == 0) {
                 return empty_view{};
@@ -700,17 +700,17 @@ namespace kaixo::tuples {
     template<view Tpl, std::size_t ...Is>
         requires ((Is < all_t<Tpl>::types::size) && ...)
     struct keep_indices_view : view_interface<keep_indices_view<Tpl, Is...>> {
-        using types = decay_t<Tpl>::types::template keep_indices<as_array<Is...>>;
+        using types = decay_t<Tpl>::types::template keep_indices<pack::as_array<Is...>>;
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr keep_indices_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
             requires (N < types::size)
         constexpr decltype(auto) get(this Self&& self) {
-            return tuples::get<as_array<Is...>[N]>(std::forward<Self>(self).tpl);
+            return tuples::get<pack::as_array<Is...>[N]>(std::forward<Self>(self).tpl);
         }
     };
 
@@ -719,7 +719,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires ((concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
                 && ((Is < all_t<Tpl>::types::size) && ...))
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (sizeof...(Is) == 0) {
@@ -742,7 +742,7 @@ namespace kaixo::tuples {
         std::tuple<Args...> args;
         Tpl tpl;
 
-        template<class T, class A> requires constructible<Tpl, T&&>
+        template<class T, class A> requires concepts::constructible<Tpl, T&&>
         constexpr append_view(T&& v, A&& args)
             : args(std::forward<A>(args)), tpl(std::forward<T>(v)) {}
 
@@ -761,7 +761,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl, class ...Args>
-            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>) && sizeof...(Args) != 0)
+            requires ((concepts::structured_binding<decay_t<Tpl>> || view<Tpl>) && sizeof...(Args) != 0)
         constexpr auto operator()(Tpl&& val, Args&& ...args) const {
             return append_view<all_t<Tpl>, Args...>{
                 std::forward<Tpl>(val), std::forward_as_tuple(std::forward<Args>(args)...)
@@ -785,7 +785,7 @@ namespace kaixo::tuples {
         std::tuple<Args...> args;
         Tpl tpl;
 
-        template<class T, class A> requires constructible<Tpl, T&&>
+        template<class T, class A> requires concepts::constructible<Tpl, T&&>
         constexpr prepend_view(T&& v, A&& args)
             : args(std::forward<A>(args)), tpl(std::forward<T>(v)) {}
 
@@ -804,7 +804,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl, class ...Args>
-            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>) && sizeof...(Args) != 0)
+            requires ((concepts::structured_binding<decay_t<Tpl>> || view<Tpl>) && sizeof...(Args) != 0)
         constexpr auto operator()(Tpl&& val, Args&& ...args) const {
             return prepend_view<all_t<Tpl>, Args...>{
                 std::forward<Tpl>(val), std::forward_as_tuple(std::forward<Args>(args)...)
@@ -827,7 +827,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr unique_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -842,7 +842,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             return unique_view<all_t<Tpl>>{ std::forward<Tpl>(val) };
         }
@@ -858,7 +858,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr reverse_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -872,7 +872,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             return reverse_view<all_t<Tpl>>{ std::forward<Tpl>(val) };
         }
@@ -888,7 +888,7 @@ namespace kaixo::tuples {
 
         Tpl tpl;
 
-        template<class T> requires constructible<Tpl, T&&>
+        template<class T> requires concepts::constructible<Tpl, T&&>
         constexpr filter_view(T&& v) : tpl(std::forward<T>(v)) {}
 
         template<std::size_t N, class Self>
@@ -903,7 +903,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires (structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires (concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (all_t<Tpl>::types::template filter<Filter>::size == 0) {
                 return empty_view{};
@@ -926,7 +926,7 @@ namespace kaixo::tuples {
         Arg arg;
         Tpl tpl;
     
-        template<class T, class A> requires constructible<Tpl, T&&>
+        template<class T, class A> requires concepts::constructible<Tpl, T&&>
         constexpr transform_view(T&& v, A&& arg)
             : arg(std::forward<A>(arg)), tpl(std::forward<T>(v)) {}
     
@@ -941,8 +941,8 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
     
         template<class Tpl, class Arg>
-            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>) 
-                && all_t<Tpl>::types::template filter<!can_invoke<Arg>>::size == 0)
+            requires ((concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
+                && all_t<Tpl>::types::template filter<!type_traits::can_invoke<Arg>>::size == 0)
         constexpr auto operator()(Tpl&& val, Arg&& arg) const {
             return transform_view<all_t<Tpl>, Arg>{
                 std::forward<Tpl>(val), std::forward<Arg>(arg)
@@ -967,7 +967,7 @@ namespace kaixo::tuples {
 
     struct _call_fun {
         template<class Functor, class Ty>
-            requires (structured_binding<decay_t<Ty>> || view<Ty>)
+            requires (concepts::structured_binding<decay_t<Ty>> || view<Ty>)
         constexpr decltype(auto) operator()(Ty&& tuple, Functor&& functor) const {
             using types = all_t<Ty>::types;
             return sequence<0, types::size>([&]<std::size_t ...Is>() -> decltype(auto) {
@@ -985,7 +985,7 @@ namespace kaixo::tuples {
         ::template transform<typename _tpl_ref<Ty&&>::type>;
 
     constexpr auto zip = []<class ...Tys>
-        requires (structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
+        requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
     {
         constexpr std::size_t min_size = std::min({ binding_types_t<decay_t<Tys>>::size... });
         using zipped = zip_t<_type_ref_impl<Tys>...>;
@@ -999,7 +999,7 @@ namespace kaixo::tuples {
         };
 
         using tuple_type = zipped
-            ::template transform<typename move_tparams<std::tuple>::type>
+            ::template transform<typename pack::copy_tparams<std::tuple>::type>
             ::template as<std::tuple>;
 
         return sequence<min_size>([&]<std::size_t ...Is> {
@@ -1014,7 +1014,7 @@ namespace kaixo::tuples {
     };
 
     constexpr auto concat = []<class ...Tys>
-        requires (structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
+        requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
     {
         using types = info<binding_types_t<decay_t<Tys>>...>;
         using tuple_type = concat_t<_type_ref_impl<Tys>...>
@@ -1034,7 +1034,7 @@ namespace kaixo::tuples {
     };
 
     constexpr auto cartesian = []<class ...Tys>
-        requires (structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
+        requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
     {
         using cartesian_type = cartesian_t<_type_ref_impl<Tys>...>;
         template_pack<Tys...> _tuples{ tuples... };
@@ -1056,7 +1056,7 @@ namespace kaixo::tuples {
         };
 
         using tuple_type = cartesian_type
-            ::template transform<typename move_tparams<std::tuple>::type>
+            ::template transform<typename pack::copy_tparams<std::tuple>::type>
             ::template as<std::tuple>;
 
         return sequence<(binding_size_v<decay_t<Tys>> * ... * 1)>([&]<std::size_t ...Is>{

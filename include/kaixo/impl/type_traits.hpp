@@ -8,7 +8,19 @@
  * template<require<is_integral || is_floating_point> Ty>
  */
 namespace kaixo {
-    inline namespace type_traits {
+    namespace detail {
+        template<template<class ...> class Ty>
+        struct is_specialization_impl {
+            template<class T> struct type {
+                constexpr static bool value = concepts::specialization<T, Ty>;
+            };
+        };
+
+        template<class Ty> struct structured_binding_impl : std::false_type {};
+        template<concepts::structured_binding Ty> struct structured_binding_impl<Ty> : std::true_type {};
+    }
+
+    namespace type_traits {
         constexpr auto is_void = type_filter<std::is_void>{};
         constexpr auto is_null_pointer = type_filter<std::is_null_pointer>{};
         constexpr auto is_integral = type_filter<std::is_integral>{};
@@ -97,18 +109,8 @@ namespace kaixo {
         template<class Other> constexpr auto can_invoke = type_filter<typename partial<std::is_invocable, Other>::type>{};
         template<class Other> constexpr auto can_nothrow_invoke = type_filter<typename partial<std::is_nothrow_invocable, Other>::type>{};
 
-        template<template<class ...> class Ty>
-        struct is_specialization_impl {
-            template<class T> struct type {
-                constexpr static bool value = specialization<T, Ty>;
-            };
-        };
+        template<template<class ...> class Ty> constexpr auto is_specialization = type_filter<typename detail::is_specialization_impl<Ty>::type>{};
 
-        template<template<class ...> class Ty> constexpr auto is_specialization = type_filter<typename is_specialization_impl<Ty>::type>{};
-
-        template<class Ty> struct structured_binding_impl : std::false_type {};
-        template<structured_binding Ty> struct structured_binding_impl<Ty> : std::true_type {};
-
-        constexpr auto has_structured_binding = type_filter<structured_binding_impl>{};
+        constexpr auto has_structured_binding = type_filter<detail::structured_binding_impl>{};
     }
 }
