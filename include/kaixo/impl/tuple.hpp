@@ -382,7 +382,14 @@ namespace kaixo::tuples {
         template<std::size_t N, class Self>
             requires (N < types::size)
         constexpr decltype(auto) get(this Self&& self) {
-            constexpr auto Indices = generate_indices_v<0, decay_t<Tpl>::types::size, Is...>;
+            constexpr std::array<std::size_t, decay_t<Tpl>::types::size - sizeof...(Is)> Indices = [] {
+                std::array<std::size_t, decay_t<Tpl>::types::size - sizeof...(Is)> _indices{};
+                std::size_t _index = 0;
+                std::size_t _match = 0;
+                for (std::size_t _index = 0; _index < decay_t<Tpl>::types::size; ++_index)
+                    if (((_index != Is) && ...)) _indices[_match++] = _index;
+                return _indices;
+            }();
             return tuples::get<Indices[N]>(std::forward<Self>(self).tpl);
         }
     };
@@ -392,7 +399,7 @@ namespace kaixo::tuples {
         using tuple_pipe = int;
 
         template<class Tpl>
-            requires ((structured_binding<decay_t<Tpl>> || view<Tpl>)
+            requires ((concepts::structured_binding<decay_t<Tpl>> || view<Tpl>)
                 && ((Is < all_t<Tpl>::types::size) && ...))
         constexpr auto operator()(Tpl&& val) const {
             if constexpr (all_t<Tpl>::types
@@ -988,7 +995,7 @@ namespace kaixo::tuples {
         requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
     {
         constexpr std::size_t min_size = std::min({ binding_types_t<decay_t<Tys>>::size... });
-        using zipped = zip_t<_type_ref_impl<Tys>...>;
+        using zipped = pack::zip_t<_type_ref_impl<Tys>...>;
         
         auto _one = [&]<std::size_t I>(value_t<I>){
             using tuple_type = typename zipped
@@ -1017,12 +1024,12 @@ namespace kaixo::tuples {
         requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
     {
         using types = info<binding_types_t<decay_t<Tys>>...>;
-        using tuple_type = concat_t<_type_ref_impl<Tys>...>
+        using tuple_type = pack::concat_t<_type_ref_impl<Tys>...>
             ::template as<std::tuple>;
         template_pack<Tys...> _tuples{ tuples... };
 
         return sequence<sizeof...(Tys)>([&]<std::size_t ...Is>() {
-            using indices = concat_t<typename concat_helper<Is, 
+            using indices = pack::concat_t<typename concat_helper<Is, 
                 std::make_index_sequence<types::template element<Is>::size>>::type...>;
             return indices::for_each([&]<class ...Index>{ 
                 return tuple_type(
@@ -1036,7 +1043,7 @@ namespace kaixo::tuples {
     constexpr auto cartesian = []<class ...Tys>
         requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
     {
-        using cartesian_type = cartesian_t<_type_ref_impl<Tys>...>;
+        using cartesian_type = pack::cartesian_t<_type_ref_impl<Tys>...>;
         template_pack<Tys...> _tuples{ tuples... };
 
         auto eval_at = [&]<std::size_t I>(value_t<I>) {

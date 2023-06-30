@@ -213,8 +213,8 @@ namespace kaixo {
     struct specialized_info<templated_t<Tys>...> {
         using _selected_specialization = _s_templated;
 
-        template<class Arg>
-        using instantiate = info<pack::instantiate_t<Arg, Tys>...>;
+        template<class ...Args> 
+        using instantiate = info<typename pack::instantiate<Tys, pack::detail::convert_to_info<Args...>>::type...>;
     };
 
     template<class ...T>
@@ -244,20 +244,20 @@ namespace kaixo {
     template<class ...Tys>
     struct info : info_base<Tys...> {
         constexpr static std::size_t size = sizeof...(Tys);
-        constexpr static std::size_t unique_size = pack::count_unique_v<Tys...>;
+        constexpr static std::size_t unique_size = pack::count_unique_v<info<Tys...>>;
         constexpr static std::size_t count_unique = unique_size;
 
         using bytes = info<value_t<sizeof_v<Tys>>...>;
 
-        using uninstantiate = info<pack::uninstantiate_t<Tys>...>;
+        template<template<class...> class              T> using transform = info<pack::transform_t<T, Tys>...>;
+        template<auto Filter, template<class...> class T> using conditional_transform = info<pack::conditional_transform_t<Filter, T, Tys>...>;
         using tparams = info<pack::tparams_t<Tys>...>;
-        template<class Arg> using reinstantiate = info<pack::reinstantiate_t<Arg, Tys>...>;
-        template<class Arg> using instantiate = info<pack::instantiate_t<Arg, Tys>...>;
-        template<template<class...> class T> using transform = info<pack::transform_t<T, Tys>...>;
         template<template<class...> class T> using as = T<Tys...>;
+        using uninstantiate = info<pack::uninstantiate_t<Tys>...>;
+        template<class T> using reinstantiate = info<pack::reinstantiate_t<T, Tys>...>;
 
         constexpr static auto for_each = []<class Ty>(Ty && lambda) {
-            return lambda.operator() < Tys... > ();
+            return lambda.template operator()<Tys...>();
         };
 
         template<auto Filter> struct when {
@@ -318,9 +318,9 @@ namespace kaixo {
         template<auto   Filter> using filter = pack::filter_t<Filter, info<Tys...>>;
         template<auto   Sorter> using sort = pack::sort_t<Sorter, info<Tys...>>;
 
-        template<class ...Args> using concat = concat_t<info, Args...>;
-        template<class ...Args> using zip = zip_t<info, Args...>;
-        template<class ...Args> using cartesian = cartesian_t<info, Args...>;
+        template<class ...Args> using concat = pack::concat_t<info<Tys...>, Args...>;
+        template<class ...Args> using zip = pack::zip_t<info<Tys...>, Args...>;
+        template<class ...Args> using cartesian = pack::cartesian_t<info, Args...>;
 
         using is_void = info<value_t<std::is_void_v<Tys>>...>;
         using is_null_pointer = info<value_t<std::is_null_pointer_v<Tys>>...>;

@@ -10,8 +10,8 @@ namespace kaixo {
      * - tparams                                Get the template parameters of Ty
      * - copy_tparams<T<...>>                   Copy tparams to T<Tys...>
      * - uninstantiate                          Remove the template parameters from Ty
-     * - instantiate<Tys...>                    Add template parameters to Ty like Ty<Tys...>
-     * - reinstantiate<Tys...>                  Replace the template parameters from Ty like Ty<Tys...>
+     * - instantiate<T<...>>                    Add template parameters to T<Tys...>
+     * - reinstantiate<T>                       Replace the template parameters from T like T<Tys...>
      * 
      * Pack info:
      * - element<I>                             Get I'th element
@@ -134,9 +134,6 @@ namespace kaixo {
                 using type = info<Args...>;
             };
 
-            template<concepts::structured_binding A>
-            struct convert_to_info_impl<A> : convert_to_info_impl<binding_types_t<A>> {};
-
             template<class ...Args>
             using convert_to_info = convert_to_info_impl<Args...>::type;
 
@@ -144,65 +141,41 @@ namespace kaixo {
             struct apply_pack : Ty<A, Args...> {};
             template<template<class...> class Ty, class A, class ...Args>
             struct apply_pack<Ty, A, info<Args...>> : Ty<A, Args...> {};
-            template<template<class...> class Ty, class A, class B>
-                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
-            struct apply_pack<Ty, A, B> : apply_pack<Ty, A, binding_types_t<B>> {};
             
             template<template<template<class...> class, class...> class Ty, template<class...> class A, class ...Args>
             struct apply_pack_t : Ty<A, Args...> {};
             template<template<template<class...> class, class...> class Ty, template<class...> class A, class ...Args>
             struct apply_pack_t<Ty, A, info<Args...>> : Ty<A, Args...> {};
-            template<template<template<class...> class, class...> class Ty, template<class...> class A, class B>
-                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
-            struct apply_pack_t<Ty, A, B> : apply_pack_t<Ty, A, binding_types_t<B>> {};
             
             template<template<auto, template<class...> class, class...> class Ty, auto V, template<class...> class A, class ...Args>
             struct apply_pack_tv : Ty<V, A, Args...> {};
             template<template<auto, template<class...> class, class...> class Ty, auto V, template<class...> class A, class ...Args>
             struct apply_pack_tv<Ty, V, A, info<Args...>> : Ty<V, A, Args...> {};
-            template<template<auto, template<class...> class, class...> class Ty, auto V, template<class...> class A, class B>
-                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
-            struct apply_pack_tv<Ty, V, A, B> : apply_pack_tv<Ty, V, A, binding_types_t<B>> {};
 
             template<template<class...> class Ty, class A, class B, class ...Args>
             struct apply_pack2 : Ty<A, B, Args...> {};
             template<template<class...> class Ty, class A, class B, class ...Args>
             struct apply_pack2<Ty, A, B, info<Args...>> : Ty<A, B, Args...> {};
-            template<template<class...> class Ty, class A, class B, class C>
-                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
-            struct apply_pack2<Ty, A, B, C> : apply_pack2<Ty, A, B, binding_types_t<C>> {};
 
             template<template<class...> class Ty, class ...Args>
             struct apply_pack_d : Ty<Args...> {};
             template<template<class...> class Ty, class ...Args>
             struct apply_pack_d<Ty, info<Args...>> : Ty<Args...> {};
-            template<template<class...> class Ty, class B>
-                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
-            struct apply_pack_d<Ty, B> : apply_pack_d<Ty, binding_types_t<B>> {};
 
             template<template<auto, class...> class Ty, auto A, class ...Args>
             struct apply_pack_v : Ty<A, Args...> {};
             template<template<auto, class...> class Ty, auto A, class ...Args>
             struct apply_pack_v<Ty, A, info<Args...>> : Ty<A, Args...> {};
-            template<template<auto, class...> class Ty, auto A, class B>
-                requires (!concepts::specialization<B, info>&& concepts::structured_binding<B>)
-            struct apply_pack_v<Ty, A, B> : apply_pack_v<Ty, A, binding_types_t<B>> {};
 
             template<template<auto, auto, class...> class Ty, auto A, auto B, class ...Args>
             struct apply_pack_v2 : Ty<A, B, Args...> {};
             template<template<auto, auto, class...> class Ty, auto A, auto B, class ...Args>
             struct apply_pack_v2<Ty, A, B, info<Args...>> : Ty<A, B, Args...> {};
-            template<template<auto, auto, class...> class Ty, auto A, auto B, class C>
-                requires (!concepts::specialization<C, info>&& concepts::structured_binding<C>)
-            struct apply_pack_v2<Ty, A, B, C> : apply_pack_v2<Ty, A, B, binding_types_t<C>> {};
 
             template<template<auto, class, class...> class Ty, auto A, class B, class ...Args>
             struct apply_pack_dv : Ty<A, B, Args...> {};
             template<template<auto, class, class...> class Ty, auto A, class B, class ...Args>
             struct apply_pack_dv<Ty, A, B, info<Args...>> : Ty<A, B, Args...> {};
-            template<template<auto, class, class...> class Ty, auto A, class B, class C>
-                requires (!concepts::specialization<C, info>&& concepts::structured_binding<C>)
-            struct apply_pack_dv<Ty, A, B, C> : apply_pack_dv<Ty, A, B, binding_types_t<C>> {};
         }
 
          // =======================================================
@@ -348,60 +321,53 @@ namespace kaixo {
 
         // =======================================================
 
-        template<class, class...> 
-        struct instantiate;
+        namespace detail {
+            template<template<class...> class T, class ...Tys>
+            struct instantiate_impl {
+                using type = T<Tys...>;
+                using _type = type;
+            };
+        }
 
         template<template<class...> class T, class ...Tys>
-        struct instantiate<info<Tys...>, templated_t<T>> {
-            using type = T<Tys...>;
-        };
+        struct instantiate : detail::apply_pack_t<detail::instantiate_impl, T, Tys...> {};
 
-        template<template<class...> class T, class Ty>
-        struct instantiate<Ty, templated_t<T>> {
-            using type = T<Ty>;
-        };
-
-        template<class T>
+        template<template<class...> class T>
         struct instantiate<T> {
-            template<class Ty>
-            using type = instantiate<T, Ty>::type;
+            template<class ...Tys>
+            using type = instantiate<T, Tys...>::type;
+            using _type = templated_t<type>;
         };
 
-        /**
-         * Specialize a templated type.
-         * @tparam T pack of types to instantiate with
-         * @tparam Ty templated type
-         */
-        template<class T, class Ty>
-        using instantiate_t = typename instantiate<T, Ty>::type;
-
+        template<template<class...> class T, class ...Tys>
+        using instantiate_t = instantiate<T, Tys...>::_type;
+        
         // =======================================================
 
-        template<class, class...> struct reinstantiate;
-        template<template<class...> class T, class ...Args, class Ty>
-        struct reinstantiate<Ty, T<Args...>> {
-            using type = T<Ty>;
+        namespace detail {
+            template<class, class ...>
+            struct reinstantiate_impl;
+
+            template<template<class...> class T, class ...Args, class ...Tys>
+            struct reinstantiate_impl<T<Args...>, Tys...> {
+                using type = T<Tys...>;
+                using _type = type;
+            };
+        }
+
+        template<class T, class ...Tys>
+        struct reinstantiate : detail::apply_pack<detail::reinstantiate_impl, T, Tys...> {};
+
+        template<class T>
+        struct reinstantiate<T> {
+            template<class ...Tys>
+            using type = reinstantiate<T, Tys...>::type;
+            using _type = templated_t<type>;
         };
 
-        template<template<class...> class T, class ...Args, class ...Tys>
-        struct reinstantiate<info<Tys...>, T<Args...>> {
-            using type = T<Tys...>;
-        };
-
-        template<class Ty>
-        struct reinstantiate<Ty> {
-            template<class T>
-            using type = reinstantiate<Ty, T>::type;
-        };
-
-        /**
-         * Specialize a templated type with new parameters.
-         * @tparam T pack of types to reinstantiate with
-         * @tparam Ty templated type
-         */
-        template<class T, class Ty>
-        using reinstantiate_t = typename reinstantiate<T, Ty>::type;
-
+        template<class T, class ...Tys>
+        using reinstantiate_t = reinstantiate<T, Tys...>::_type;
+        
         // =======================================================
 
         template<template<class...> class, class ...T> requires (sizeof...(T) <= 1)
@@ -707,7 +673,7 @@ namespace kaixo {
             constexpr double _unq_cnt = 1.0 / (std::is_same_v<T, Tys> + ...);
 
             template<class... Tys>
-            struct count_unique_impl : std::integral_constant<std::size_t, static_cast<std::size_t>((_unq_cnt<Tys, Tys...> + ...) + 0.5)> {};
+            struct count_unique_impl : std::integral_constant<std::size_t, static_cast<std::size_t>((_unq_cnt<Tys, Tys...> + ... + 0) + 0.5)> {};
         }
         
         template<class ...Tys>
@@ -1028,8 +994,8 @@ namespace kaixo {
         
         namespace detail {
             template<class ...Tys>
-            constexpr static std::array<std::size_t, count_unique_v<Tys...>> _unq_fst_i = [] {
-                std::array<std::size_t, count_unique_v<Tys...>> _result{};
+            constexpr static std::array<std::size_t, count_unique_v<info<Tys...>>> _unq_fst_i = [] {
+                std::array<std::size_t, count_unique_v<info<Tys...>>> _result{};
                 std::size_t _index = 0, _match = 0;
                 (((index_v<Tys, Tys...> == _index) ? _result[_match++] = _index++ : ++_index), ...);
                 return _result;
@@ -1037,7 +1003,7 @@ namespace kaixo {
 
             template<class... Args>
             struct unique_indices_impl {
-                constexpr static std::array<std::size_t, count_unique_v<Args...>> value = _unq_fst_i<Args...>;;
+                constexpr static std::array<std::size_t, count_unique_v<info<Args...>>> value = _unq_fst_i<Args...>;;
             };
         }
 
@@ -1100,7 +1066,7 @@ namespace kaixo {
 
             template<class... Tys> 
             struct unique_impl {
-                using type = unique_impl_base<std::make_index_sequence<count_unique_v<Tys...>>, Tys...>::type;
+                using type = unique_impl_base<std::make_index_sequence<count_unique_v<info<Tys...>>>, Tys...>::type;
                 using _type = type;
             };
         }
@@ -1134,6 +1100,12 @@ namespace kaixo {
             template<class ...As>
             struct join_impl_base<info<As...>> {
                 using type = info<As...>;
+                using _type = type;
+            };
+            
+            template<>
+            struct join_impl_base<> {
+                using type = info<>;
                 using _type = type;
             };
 
@@ -2089,99 +2061,77 @@ namespace kaixo {
             constexpr auto alignment = []<class A, class B>{ return alignof_v<A> < alignof_v<B>; };
             constexpr auto ralignment = []<class A, class B>{ return alignof_v<A> > alignof_v<B>; };
         }
+
+        // =======================================================
+
+        template<class ...As>
+        struct concat : detail::join_impl<detail::convert_to_info<As>...> {};
+
+        template<class ...As>
+        using concat_t = concat<As...>::type;
+
+        // =======================================================
+
+        namespace detail {
+            template<std::size_t I, class ...As>
+            using _zip_el = info<typename element<I, As>::type...>;
+
+            template<class, class...>
+            struct zip_impl_base;
+
+            template<std::size_t ...Is, class ...As>
+            struct zip_impl_base<std::index_sequence<Is...>, As...> {
+                using type = info<_zip_el<Is, As...>...>;
+                using _type = type;
+            };
+
+            template<class... As>
+            struct zip_impl : zip_impl_base<std::index_sequence_for<As...>, As...> {};
+        }
+
+        template<class ...As>
+        struct zip : detail::zip_impl<detail::convert_to_info<As>...> {};
+
+        template<class ...As>
+        using zip_t = zip<As...>::type;
+
+        // =======================================================
+
+        namespace detail {
+            template<class...> 
+            struct cartesian_impl;
+
+            template<class ...As>
+            struct cartesian_impl<info<As...> > {
+                using type = info<As...>;
+            };
+
+            template<class...As>
+            struct cartesian_impl<info<info<>>, As... > {
+                using type = info<>;
+            };
+
+            template<class...As, class ...Cs>
+            struct cartesian_impl<info<As...>, info<>, Cs... > {
+                using type = info<>;
+            };
+
+            template<class ...As, class B, class ...Cs>
+            struct cartesian_impl<info<As...>, info<B>, Cs...> 
+                : cartesian_impl<info<typename join_impl<As, info<B>>::type...>, Cs...> {};
+
+            template<class ...As, class B, class ...Bs, class ...Cs>
+            struct cartesian_impl<info<As...>, info<B, Bs...>, Cs...> 
+                : cartesian_impl<typename join_impl<
+                     info<typename join_impl<As, info<B>>::type...>,
+                     typename cartesian_impl<info<As...>, info<Bs...>>::type
+                 >::type, Cs...> {};
+        }
+
+        template<class ...As>
+        struct cartesian : detail::cartesian_impl<info<info<>>, detail::convert_to_info<As>...> {};
+
+        template<class ...Tys>
+        using cartesian_t = typename cartesian<Tys...>::type;
     }
-
-    template<std::size_t From, std::size_t To, std::size_t ...Except>
-    struct generate_indices {
-        constexpr static std::array<std::size_t, To - From - sizeof...(Except)> value = [] {
-            std::array<std::size_t, To - From - sizeof...(Except)> _indices{};
-            std::size_t _index = 0;
-            std::size_t _match = 0;
-            for (std::size_t _index = From; _index < To; ++_index)
-                if (((_index != Except) && ...)) _indices[_match++] = _index;
-            return _indices;
-        }();
-    };
-
-    template<std::size_t From, std::size_t To, std::size_t ...Except>
-    constexpr std::array<std::size_t, To - From - sizeof...(Except)>
-        generate_indices_v = generate_indices<From, To, Except...>::value;
-
-    template<class...> struct concat { using type = info<>; };
-    template<template<class...> class A, class ...As>
-    struct concat<A<As...>> { using type = A<As...>; };
-    template<template<class...> class A, template<class...> class B, class ...As, class ...Bs, class ...Rest>
-    struct concat<A<As...>, B<Bs...>, Rest...> { using type = typename concat<A<As..., Bs...>, Rest...>::type; };
-
-    /**
-     * Concat all template parameters of all templated
-     * types in ...Tys.
-     * @tparam ...Tys templated types
-     */
-    template<class ...Tys>
-    using concat_t = typename concat<Tys...>::type;
-
-    template<class... As> struct zip {
-        using _first = info<typename info<As...>::template type<0>>;
-        template<class A, std::size_t I> using a_a_i = typename info<A>::tparams::template element<I>::type;
-        template<std::size_t I> using at_index = typename _first::template reinstantiate<info<a_a_i<As, I>...>>::type;
-        template<std::size_t ...Is> struct helper {
-            using type = typename _first::template reinstantiate<info<at_index<Is>...>>::type;
-        };
-        using type = pack::array_to_pack_t < generate_indices_v < 0, std::min({ info<As>::tparams::size... }) > , helper > ::type;
-    };
-
-    template<class A> struct zip<A> { using type = A; };
-    template<> struct zip<> { using type = info<>; };
-
-    /**
-     * Zip all types in the info's ...As
-     * @tparam ...As info types
-     */
-    template<class ...As> using zip_t = typename zip<As...>::type;
-
-    template<class...> struct cartesian_helper;
-    template<template<class...> class T, class ...As>
-    struct cartesian_helper<T<As...> > {
-        using type = T<As...>;
-    };
-
-    template<template<class...> class T, class...As>
-    struct cartesian_helper<T<T<>>, As... > {
-        using type = T<>;
-    };
-
-    template<template<class...> class T, class...As, class ...Cs>
-    struct cartesian_helper<T<As...>, T<>, Cs... > {
-        using type = T<>;
-    };
-
-    template<template<class...> class T, class ...As, class B, class ...Cs>
-    struct cartesian_helper<T<As...>, T<B>, Cs...> {
-        using type1 = T<concat_t<As, T<B>>...>;
-        using type = typename cartesian_helper<type1, Cs...>::type;
-    };
-
-    template<template<class...> class T, class ...As, class B, class ...Bs, class ...Cs>
-    struct cartesian_helper<T<As...>, T<B, Bs...>, Cs...> {
-        using type1 = T<concat_t<As, T<B>>...>;
-        using type2 = typename cartesian_helper<T<As...>, T<Bs...> >::type;
-        using type3 = concat_t<type1, type2>;
-        using type = typename cartesian_helper<type3, Cs...>::type;
-    };
-
-    template<class...> struct cartesian;
-    template<template<class...> class T, class...As, class... Tys>
-    struct cartesian<T<As...>, Tys...> {
-        using type = typename cartesian_helper<T<T<As>...>, Tys...>::type;
-    };
-
-    /**
-     * Get the cartesian product of the template types
-     * of all templated types ...Tys.
-     * @tparam ...Tys templated types
-     */
-    template<class ...Tys>
-    using cartesian_t = typename cartesian<Tys...>::type;
-
 }
