@@ -1250,87 +1250,87 @@ namespace kaixo::tuples {
 
     // =======================================================
 
-    template<class Ty>
-    using _type_ref_impl = binding_types_t<decay_t<Ty>>
-        ::template transform<typename _tpl_ref<Ty&&>::type>;
+    //template<class Ty>
+    //using _type_ref_impl = binding_types_t<decay_t<Ty>>
+    //    ::template transform<typename _tpl_ref<Ty&&>::type>;
 
-    constexpr auto zip = []<class ...Tys>
-        requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
-    {
-        constexpr std::size_t min_size = std::min({ binding_types_t<decay_t<Tys>>::size... });
-        using zipped = pack::zip_t<_type_ref_impl<Tys>...>;
-        
-        auto _one = [&]<std::size_t I>(value_t<I>){
-            using tuple_type = typename zipped
-                ::template element<I>
-                ::template as<std::tuple>;
+    //constexpr auto zip = []<class ...Tys>
+    //    requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
+    //{
+    //    constexpr std::size_t min_size = std::min({ binding_types_t<decay_t<Tys>>::size... });
+    //    using zipped = pack::zip_t<_type_ref_impl<Tys>...>;
+    //    
+    //    auto _one = [&]<std::size_t I>(value_t<I>){
+    //        using tuple_type = typename zipped
+    //            ::template element<I>
+    //            ::template as<std::tuple>;
 
-            return tuple_type(get<I>(std::forward<Tys>(tuples))...);
-        };
+    //        return tuple_type(get<I>(std::forward<Tys>(tuples))...);
+    //    };
 
-        using tuple_type = zipped
-            ::template transform<typename pack::copy_tparams<std::tuple>::type>
-            ::template as<std::tuple>;
+    //    using tuple_type = zipped
+    //        ::template transform<typename pack::copy_tparams<std::tuple>::type>
+    //        ::template as<std::tuple>;
 
-        return sequence<min_size>([&]<std::size_t ...Is> {
-            return tuple_type(_one(value_t<Is>{})...);
-        });
-    };
+    //    return sequence<min_size>([&]<std::size_t ...Is> {
+    //        return tuple_type(_one(value_t<Is>{})...);
+    //    });
+    //};
 
-    template<std::size_t, class> struct concat_helper;
-    template<std::size_t I, std::size_t ...Is>
-    struct concat_helper<I, std::index_sequence<Is...>> {
-        using type = info<info<value_t<I>, value_t<Is>>...>;
-    };
+    //template<std::size_t, class> struct concat_helper;
+    //template<std::size_t I, std::size_t ...Is>
+    //struct concat_helper<I, std::index_sequence<Is...>> {
+    //    using type = info<info<value_t<I>, value_t<Is>>...>;
+    //};
 
-    constexpr auto concat = []<class ...Tys>
-        requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
-    {
-        using types = info<binding_types_t<decay_t<Tys>>...>;
-        using tuple_type = pack::concat_t<_type_ref_impl<Tys>...>
-            ::template as<std::tuple>;
-        template_pack<Tys...> _tuples{ tuples... };
+    //constexpr auto concat = []<class ...Tys>
+    //    requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
+    //{
+    //    using types = info<binding_types_t<decay_t<Tys>>...>;
+    //    using tuple_type = pack::concat_t<_type_ref_impl<Tys>...>
+    //        ::template as<std::tuple>;
+    //    template_pack<Tys...> _tuples{ tuples... };
 
-        return sequence<sizeof...(Tys)>([&]<std::size_t ...Is>() {
-            using indices = pack::concat_t<typename concat_helper<Is, 
-                std::make_index_sequence<types::template element<Is>::size>>::type...>;
-            return indices::for_each([&]<class ...Index>{ 
-                return tuple_type(
-                    get<Index::template value<1>>(
-                        get<Index::template value<0>>(_tuples))...
-                );
-            });
-        });
-    };
+    //    return sequence<sizeof...(Tys)>([&]<std::size_t ...Is>() {
+    //        using indices = pack::concat_t<typename concat_helper<Is, 
+    //            std::make_index_sequence<types::template element<Is>::size>>::type...>;
+    //        return indices::for_each([&]<class ...Index>{ 
+    //            return tuple_type(
+    //                get<Index::template value<1>>(
+    //                    get<Index::template value<0>>(_tuples))...
+    //            );
+    //        });
+    //    });
+    //};
 
-    constexpr auto cartesian = []<class ...Tys>
-        requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
-    {
-        using cartesian_type = pack::cartesian_t<_type_ref_impl<Tys>...>;
-        template_pack<Tys...> _tuples{ tuples... };
+    //constexpr auto cartesian = []<class ...Tys>
+    //    requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
+    //{
+    //    using cartesian_type = pack::cartesian_t<_type_ref_impl<Tys>...>;
+    //    template_pack<Tys...> _tuples{ tuples... };
 
-        auto eval_at = [&]<std::size_t I>(value_t<I>) {
-            return sequence<sizeof...(Tys)>([&]<std::size_t ...Is>{
-                constexpr auto _indices = sequence<sizeof...(Tys)>([&]<std::size_t ...Ns>() {
-                    constexpr std::array sizes{ binding_size_v<decay_t<Tys>>... };
-                    std::size_t _t_pos = 0, _p_pos = I;
-                    return std::array{ (_t_pos = _p_pos % sizes[Ns], _p_pos /= sizes[Ns], _t_pos)... };
-                });;
+    //    auto eval_at = [&]<std::size_t I>(value_t<I>) {
+    //        return sequence<sizeof...(Tys)>([&]<std::size_t ...Is>{
+    //            constexpr auto _indices = sequence<sizeof...(Tys)>([&]<std::size_t ...Ns>() {
+    //                constexpr std::array sizes{ binding_size_v<decay_t<Tys>>... };
+    //                std::size_t _t_pos = 0, _p_pos = I;
+    //                return std::array{ (_t_pos = _p_pos % sizes[Ns], _p_pos /= sizes[Ns], _t_pos)... };
+    //            });;
 
-                using tuple_type = typename cartesian_type
-                    ::template element<I>
-                    ::template as<std::tuple>;
+    //            using tuple_type = typename cartesian_type
+    //                ::template element<I>
+    //                ::template as<std::tuple>;
 
-                return tuple_type(get<_indices[Is]>(get<Is>(_tuples))...);
-            });
-        };
+    //            return tuple_type(get<_indices[Is]>(get<Is>(_tuples))...);
+    //        });
+    //    };
 
-        using tuple_type = cartesian_type
-            ::template transform<typename pack::copy_tparams<std::tuple>::type>
-            ::template as<std::tuple>;
+    //    using tuple_type = cartesian_type
+    //        ::template transform<typename pack::copy_tparams<std::tuple>::type>
+    //        ::template as<std::tuple>;
 
-        return sequence<(binding_size_v<decay_t<Tys>> * ... * 1)>([&]<std::size_t ...Is>{
-            return tuple_type(eval_at(value_t<Is>{})...);
-        });
-    };
+    //    return sequence<(binding_size_v<decay_t<Tys>> * ... * 1)>([&]<std::size_t ...Is>{
+    //        return tuple_type(eval_at(value_t<Is>{})...);
+    //    });
+    //};
 }

@@ -65,7 +65,7 @@ constexpr static auto handle(Args&& ...cases) {                  \
      * @param cases... functors, either invocable with case value, or nothing
      * @return generated switch
      */
-    template<auto transform = function::unit>
+    template<auto transform = functions::unit>
     constexpr auto generate_switch = []<class ...Functors>(Functors&& ...cases) {
         constexpr auto p2 = closest_larger_power2(sizeof...(Functors));
         return detail::cases_switch_impl<p2>::template handle<transform>(std::forward<Functors>(cases)...);
@@ -103,7 +103,7 @@ constexpr static auto handle(Arg&& functor) {                    \
      * @tparam transform transform the case index
      * @return generated template switch
      */
-    template<std::unsigned_integral auto cases, auto transform = function::unit>
+    template<std::unsigned_integral auto cases, auto transform = functions::unit>
     constexpr auto generate_template_switch = []<class Arg>(Arg && functor) {
         constexpr auto p2 = closest_larger_power2(cases);
         return detail::template_switch_impl<p2>::template handle<cases, transform>(std::forward<Arg>(functor));

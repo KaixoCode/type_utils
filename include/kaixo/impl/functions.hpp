@@ -7,7 +7,7 @@
  */
 namespace kaixo {
 
-    namespace function {
+    namespace functions {
         constexpr auto unit = []<class Ty>(Ty && i) -> Ty&& { return std::forward<Ty>(i); };
         template<class To>
         constexpr auto cast = []<class Ty>(Ty && i) -> To { return static_cast<To>(std::forward<Ty>(i)); };
@@ -122,4 +122,55 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
         template<class Ty> using function_info = function_info_impl<std::remove_cv_t<std::remove_reference_t<Ty>>>;
         template<class Ty> concept callable_type = requires(Ty) { typename function_info<Ty>::result; };
     }
+
+    // =======================================================
+
+    template<class ...Ty> requires (sizeof...(Ty) <= 1)
+    struct arguments {
+        using type = info<>;
+        using _type = type;
+    };
+
+    template<detail::callable_type Ty>
+    struct arguments<Ty> {
+        using type = detail::function_info<Ty>::arguments;
+        using _type = type;
+    };
+
+    template<>
+    struct arguments<> {
+        template<class Ty>
+        using type = arguments<Ty>::type;
+        using _type = templated_t<type>;
+    };
+
+    template<class ...Ty> requires (sizeof...(Ty) <= 1)
+    using arguments_t = arguments<Ty...>::_type;
+
+    // =======================================================
+    
+    template<class ...Ty> requires (sizeof...(Ty) <= 1)
+    struct return_type {
+        using type = info<>;
+        using _type = type;
+    };
+
+    template<detail::callable_type Ty>
+    struct return_type<Ty> {
+        using type = detail::function_info<Ty>::result;
+        using _type = type;
+    };
+
+    template<>
+    struct return_type<> {
+        template<class Ty>
+        using type = return_type<Ty>::type;
+        using _type = templated_t<type>;
+    };
+
+    template<class ...Ty> requires (sizeof...(Ty) <= 1)
+    using return_type_t = return_type<Ty...>::_type;
+
+    // =======================================================
+
 }

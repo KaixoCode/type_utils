@@ -123,8 +123,35 @@ namespace kaixo {
     constexpr auto operator op(A&& a, B&& b) {                               \
         return name##_type_filter{ std::forward<A>(a), std::forward<B>(b) }; \
     }
+    
+#define KAIXO_UNARY_TYPE_FILTER_OP(name, op)                                 \
+    template<class A>                                                        \
+    struct name##_type_filter {                                              \
+        using _is_type_filter = int;                                         \
+        [[no_unique_address]] A a;                                           \
+                                                                             \
+        template<class ...Tys>                                               \
+        constexpr decltype(auto) evaluate() const {                          \
+            return op detail::_vfv<Tys...>(a);                               \
+        }                                                                    \
+                                                                             \
+        template<class B>                                                    \
+        constexpr auto operator[](B&& b) const {                             \
+            return detail::index_type_filter{ *this, std::forward<B>(b) };   \
+        }                                                                    \
+    };                                                                       \
+                                                                             \
+    template<class A>                                                        \
+        requires detail::valid_type_filter_op<A>                             \
+    constexpr auto operator op(A&& a) {                                      \
+        return name##_type_filter{ std::forward<A>(a) };                     \
+    }
 
     namespace operators {
+        KAIXO_UNARY_TYPE_FILTER_OP(negate, -);
+        KAIXO_UNARY_TYPE_FILTER_OP(boolean_not, !);
+        KAIXO_UNARY_TYPE_FILTER_OP(bitwise_not, ~);
+
         KAIXO_TYPE_FILTER_OP(add, +);
         KAIXO_TYPE_FILTER_OP(subtract, -);
         KAIXO_TYPE_FILTER_OP(multiply, *);
