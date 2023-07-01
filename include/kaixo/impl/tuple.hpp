@@ -50,8 +50,8 @@ namespace kaixo {
      * - values                                 Get second element from nested pair
      * 
      * Tuple combiners:
+     * - zip
      * x concat
-     * x zip
      * x cartesian
      * 
      */
@@ -127,8 +127,8 @@ namespace std {
     template<kaixo::tuples::view Ty>
     struct tuple_size<Ty> : std::integral_constant<std::size_t, Ty::types::size> {};
     template<size_t I, kaixo::tuples::view Ty>
-    struct tuple_element<I, Ty> : Ty::types::template element<I> {};
-
+    struct tuple_element<I, Ty> : std::type_identity<typename Ty::types::template element<I>::type> {};
+    
     template<size_t I, kaixo::tuples::view Ty>
     constexpr decltype(auto) get(Ty&& val) {
         return std::forward<Ty>(val).template get<I>();
@@ -156,10 +156,6 @@ namespace kaixo::tuples {
             requires (concepts::structured_binding<decay_t<Ty>> || view<Ty>)
         constexpr decltype(auto) operator()(Ty&& tuple) const {
             if constexpr (view<Ty>) {
-                using type = decay_t<Ty>::types                    
-                    ::template element<I>
-                    ::template transform<typename _tpl_ref<Ty&&>::type>
-                    ::type;
                 return std::forward<Ty>(tuple).template get<I>();
             } else {
                 using type = binding_types_t<decay_t<Ty>>
@@ -1247,6 +1243,64 @@ namespace kaixo::tuples {
     };
 
     constexpr _call_fun call{};
+
+    // =======================================================
+
+    template<view ...Tpls>
+    struct zip_view : view_interface<zip_view<Tpls...>> {
+        using _types = pack::zip_t<typename decay_t<Tpls>::types...>;
+
+        template<std::size_t I>
+        struct zip_element_view : view_interface<zip_element_view<I>> {
+            using types = typename zip_view<Tpls...>::_types::template element<I>;
+
+            std::tuple<Tpls...> tuples;
+
+            template<class Tuple> requires concepts::constructible<std::tuple<Tpls...>, Tuple&&>
+            constexpr zip_element_view(Tuple&& ts)
+                : tuples(std::forward<Tuple>(ts)) {}
+
+            template<std::size_t N, class Self>
+                requires (N < types::size)
+            constexpr decltype(auto) get(this Self&& self) {
+                return tuples::get<I>(std::get<N>(std::forward<Self>(self).tuples));
+            }
+        };
+
+        template<class>
+        struct _type_helper;
+
+        template<std::size_t ...Is>
+        struct _type_helper<std::index_sequence<Is...>> {
+            using type = info<zip_element_view<Is>...>;
+        };
+
+        using types = _type_helper<std::make_index_sequence<_types::size>>::type;
+
+        std::tuple<Tpls...> tuples;
+
+        template<class ...Ts> requires concepts::constructible<std::tuple<Tpls...>, Ts&&...>
+        constexpr zip_view(Ts&& ...ts)
+            : tuples(std::forward<Ts>(ts)...) {}
+
+        template<std::size_t N, class Self>
+            requires (N < _types::size)
+        constexpr decltype(auto) get(this Self&& self) {
+            return zip_element_view<N>{ std::forward<Self>(self).tuples };
+        }
+    };
+
+    struct _zip_fun {
+        using tuple_pipe = int;
+
+        template<class ...Tpls>
+            requires ((concepts::structured_binding<decay_t<Tpls>> || view<Tpls>) && ...)
+        constexpr auto operator()(Tpls&& ...vals) const {
+            return zip_view<all_t<Tpls>...>{ std::forward<Tpls>(vals)... };
+        }
+    };
+
+    constexpr auto zip = _zip_fun{};
 
     // =======================================================
 
