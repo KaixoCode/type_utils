@@ -111,7 +111,7 @@ namespace kaixo {
 
         template<class Ty>
         concept structured_binding = aggregate<Ty> || requires () {
-            typename std::tuple_element<0, Ty>::type;
+            { std::tuple_size<Ty>::value };
         };
 
         template<class Ty> concept functor = requires(decltype(&Ty::operator()) a) { a; };

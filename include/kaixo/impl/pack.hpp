@@ -1938,6 +1938,7 @@ namespace kaixo {
         // =======================================================
 
         namespace detail {
+            // TODO: index support
             template<auto Filter, class R, class ...Tys>
             struct replace_filter_impl {
                 using type = info<std::conditional_t<matches_filter<Filter, Tys>, R, Tys>...>;
@@ -2086,7 +2087,7 @@ namespace kaixo {
             };
 
             template<class... As>
-            struct zip_impl : zip_impl_base<std::index_sequence_for<As...>, As...> {};
+            struct zip_impl : zip_impl_base<std::make_index_sequence<std::min({ As::size... })>, As...> {};
         }
 
         template<class ...As>
@@ -2099,38 +2100,44 @@ namespace kaixo {
 
         namespace detail {
             template<class...> 
-            struct cartesian_impl;
+            struct cartesian_impl_base;
 
             template<class ...As>
-            struct cartesian_impl<info<As...> > {
+            struct cartesian_impl_base<info<As...> > {
                 using type = info<As...>;
             };
 
             template<class...As>
-            struct cartesian_impl<info<info<>>, As... > {
+            struct cartesian_impl_base<info<info<>>, As... > {
                 using type = info<>;
             };
 
             template<class...As, class ...Cs>
-            struct cartesian_impl<info<As...>, info<>, Cs... > {
+            struct cartesian_impl_base<info<As...>, info<>, Cs... > {
                 using type = info<>;
             };
 
             template<class ...As, class B, class ...Cs>
-            struct cartesian_impl<info<As...>, info<B>, Cs...> 
-                : cartesian_impl<info<typename join_impl<As, info<B>>::type...>, Cs...> {};
+            struct cartesian_impl_base<info<As...>, info<B>, Cs...>
+                : cartesian_impl_base<info<typename join_impl<As, info<B>>::type...>, Cs...> {};
 
             template<class ...As, class B, class ...Bs, class ...Cs>
-            struct cartesian_impl<info<As...>, info<B, Bs...>, Cs...> 
-                : cartesian_impl<typename join_impl<
+            struct cartesian_impl_base<info<As...>, info<B, Bs...>, Cs...>
+                : cartesian_impl_base<typename join_impl<
                      info<typename join_impl<As, info<B>>::type...>,
-                     typename cartesian_impl<info<As...>, info<Bs...>>::type
+                     typename cartesian_impl_base<info<As...>, info<Bs...>>::type
                  >::type, Cs...> {};
+
+            template<class, class...>
+            struct cartesian_impl;
+
+            template<class ...As, class ...Bs>
+            struct cartesian_impl<info<As...>, Bs...> : cartesian_impl_base<info<info<As>...>, Bs...> {};
         }
 
         template<class ...As>
-        struct cartesian : detail::cartesian_impl<info<info<>>, detail::convert_to_info<As>...> {};
-
+        struct cartesian : detail::cartesian_impl<detail::convert_to_info<As>...> {};
+        
         template<class ...Tys>
         using cartesian_t = typename cartesian<Tys...>::type;
     }
