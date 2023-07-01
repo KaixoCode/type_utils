@@ -1381,36 +1381,4 @@ namespace kaixo::tuples {
     };
 
     constexpr auto cartesian = _cartesian_fun{};
-
-
-    //constexpr auto cartesian = []<class ...Tys>
-    //    requires (concepts::structured_binding<decay_t<Tys>> && ...) (Tys&&... tuples)
-    //{
-    //    using cartesian_type = pack::cartesian_t<_type_ref_impl<Tys>...>;
-    //    template_pack<Tys...> _tuples{ tuples... };
-
-    //    auto eval_at = [&]<std::size_t I>(value_t<I>) {
-    //        return sequence<sizeof...(Tys)>([&]<std::size_t ...Is>{
-    //            constexpr auto _indices = sequence<sizeof...(Tys)>([&]<std::size_t ...Ns>() {
-    //                constexpr std::array sizes{ binding_size_v<decay_t<Tys>>... };
-    //                std::size_t _t_pos = 0, _p_pos = I;
-    //                return std::array{ (_t_pos = _p_pos % sizes[Ns], _p_pos /= sizes[Ns], _t_pos)... };
-    //            });;
-
-    //            using tuple_type = typename cartesian_type
-    //                ::template element<I>
-    //                ::template as<std::tuple>;
-
-    //            return tuple_type(get<_indices[Is]>(get<Is>(_tuples))...);
-    //        });
-    //    };
-
-    //    using tuple_type = cartesian_type
-    //        ::template transform<typename pack::copy_tparams<std::tuple>::type>
-    //        ::template as<std::tuple>;
-
-    //    return sequence<(binding_size_v<decay_t<Tys>> * ... * 1)>([&]<std::size_t ...Is>{
-    //        return tuple_type(eval_at(value_t<Is>{})...);
-    //    });
-    //};
 }
