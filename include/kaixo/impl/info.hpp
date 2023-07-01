@@ -140,7 +140,7 @@ namespace kaixo {
         using name = info<value_t<enum_name<Tys, Value>>...>;
 
         template<auto Value>
-        using defined = info<value_t<enum_name<Tys, Value>.size() != 0>...>;
+        using defined = info<value_t<enum_defined<Tys, Value>>...>;
     };
 
     /**
@@ -225,7 +225,7 @@ namespace kaixo {
      * @tparam ...Tys types
      */
     template<class ...Tys> requires (sizeof...(Tys) > 1)
-        struct info_base<Tys...> : specialized_info<Tys...> {
+    struct info_base<Tys...> : specialized_info<Tys...> {
         template<std::size_t I>
         using type = pack::element_t<I, Tys...>;
 

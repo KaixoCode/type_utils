@@ -26,7 +26,7 @@ namespace kaixo {
      */
     template <std::unsigned_integral Ty>
     constexpr Ty closest_larger_power2(Ty v) {
-        return v > 1ull ? 1ull << (sizeof(Ty) * CHAR_BIT - std::countl_zero(v - 1ull)) : v;
+        return v > 1ull ? 1ull << (sizeof(Ty) * CHAR_BIT - static_cast<std::size_t>(std::countl_zero(v - 1ull))) : v;
     }
     static_assert(closest_larger_power2(2ull) == 2);
     static_assert(closest_larger_power2(3ull) == 4);
@@ -217,6 +217,13 @@ namespace kaixo {
         else return string_literal<name.size() + 1>{ name };
     }();
 
+    template<class Ty, auto V>
+    constexpr auto enum_defined = [] {
+        constexpr auto name = enum_name_impl<Ty, static_cast<Ty>(V)>();
+        if constexpr (name.data() == nullptr) return false;
+        else return true;
+    };
+
     /**
      * Extract value name from function signature.
      * @tparam Value template value
@@ -392,10 +399,8 @@ namespace kaixo {
         if constexpr (sizeof...(Ty) == 0) return type_filter<detail::sizeof_impl>{};
         else {
             using type = detail::_algn_fst<Ty...>::type;
-            if constexpr (std::is_void_v<type>) return 0;
-            else if constexpr (std::is_function_v<type>) return 0;
-            else if constexpr (std::is_array_v<type> && std::extent_v<type> == 0) return 0;
-            else return sizeof(type);
+            if constexpr (requires () { { sizeof(type) }; }) return sizeof(type);
+            else return 0;
         }
     }();
 
@@ -409,9 +414,8 @@ namespace kaixo {
         if constexpr (sizeof...(Ty) == 0) return type_filter<detail::alignof_impl>{};
         else {
             using type = detail::_algn_fst<Ty...>::type;
-            if constexpr (std::is_void_v<type>) return 0;
-            else if constexpr (std::is_function_v<type>) return 0;
-            else return std::alignment_of_v<type>;
+            if constexpr (requires () { { alignof(type) }; }) return alignof(type);
+            else return 0;
         }
     }();
 
