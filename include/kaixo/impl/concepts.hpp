@@ -42,6 +42,7 @@ namespace kaixo {
         template<class Ty> concept member_pointer = std::is_member_pointer_v<Ty>;
         template<class Ty> concept const_type = std::is_const_v<std::remove_reference_t<Ty>>;
         template<class Ty> concept volatile_type = std::is_volatile_v<std::remove_reference_t<Ty>>;
+        template<class Ty> concept pod_type = std::is_pod_v<Ty>;
         template<class Ty> concept trivial = std::is_trivial_v<Ty>;
         template<class Ty> concept trivially_copyable = std::is_trivially_copyable_v<Ty>;
         template<class Ty> concept standard_layout = std::is_standard_layout_v<Ty>;

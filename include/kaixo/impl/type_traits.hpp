@@ -44,6 +44,7 @@ namespace kaixo {
         constexpr auto is_member_pointer = type_filter<std::is_member_pointer>{};
         constexpr auto is_const = type_filter<std::is_const>{};
         constexpr auto is_volatile = type_filter<std::is_volatile>{};
+        constexpr auto is_pod = type_filter<std::is_pod>{};
         constexpr auto is_trivial = type_filter<std::is_trivial>{};
         constexpr auto is_trivially_copyable = type_filter<std::is_trivially_copyable>{};
         constexpr auto is_standard_layout = type_filter<std::is_standard_layout>{};
