@@ -40,8 +40,6 @@ namespace kaixo {
      * - erase<I>                               Remove index I
      * - insert<I>(Vals...)                     Insert values Vals... at index I
      * - swap<I>(B)                             Swap index I with value B
-     * x replace<A, B...>                       Replace all B... with A
-     * x replace_filter<A, Filter>              Replace Filter matches with A
      * - filter<Filter>                         Only keep types that match Filter
      * x sort<Sorter>                           Sort the types using the Sorter
      * - transform(Fun)                         Transform using Fun
@@ -50,9 +48,9 @@ namespace kaixo {
      * - values                                 Get second element from nested pair
      * 
      * Tuple combiners:
+     * - concat
      * - zip
-     * x concat
-     * x cartesian
+     * - cartesian
      * 
      */
 
@@ -354,6 +352,66 @@ namespace kaixo::tuples {
 
     constexpr auto join = _join_fun{};
     
+    // =======================================================
+    
+    //template<view Tpl, class ...Args>
+    //struct split_view : view_interface<split_view<Tpl, Args...>> {
+    //    using _types = decay_t<Tpl>::types::template split<Args...>;
+    //
+    //    template<std::size_t I>
+    //    struct split_view_element : view_interface<split_view_element<I>> {
+    //        using types = _types::template element<I>;
+    //    
+    //        template<class T> requires concepts::constructible<Tpl, T&&>
+    //        constexpr split_view_element(T&& v) : tpl(std::forward<T>(v)) {}
+    //    
+    //        Tpl tpl;
+    //    
+    //        template<std::size_t N, class Self>
+    //            requires (N < types::size)
+    //        constexpr decltype(auto) get(this Self&& self) {
+    //            return 0;
+    //        }
+    //    };
+    //
+    //    template<class T> requires concepts::constructible<Tpl, T&&>
+    //    constexpr split_view(T&& v) : tpl(std::forward<T>(v)) {}
+    //
+    //    template<class>
+    //    struct _type_helper;
+    //
+    //    template<std::size_t ...Is>
+    //    struct _type_helper<std::index_sequence<Is...>> {
+    //        using type = info<split_view_element<Is>...>;
+    //    };
+    //
+    //    using types = _type_helper<std::make_index_sequence<_types::size>>::type;
+    //
+    //    Tpl tpl;
+    //
+    //    template<std::size_t N, class Self>
+    //        requires (N < types::size)
+    //    constexpr auto get(this Self&& self) {
+    //        return split_view_element<N>{ std::forward<Self>(self).tpl };
+    //    }
+    //};
+    //
+    //template<class ...Args>
+    //struct _split_fun : pipe_interface<_split_fun<Args...>> {
+    //        template<class Tpl>
+    //        requires (concepts::structured_binding<decay_t<Tpl>> || view<decay_t<Tpl>>)
+    //    constexpr auto operator()(Tpl&& val) const {
+    //        if constexpr (all_t<Tpl>::types::size == 0) {
+    //            return empty_view{};
+    //        } else {
+    //            return split_view<all_t<Tpl>, Args...>{ std::forward<Tpl>(val) };
+    //        }
+    //    }
+    //};
+    //
+    //template<class ...Args>
+    //constexpr auto split = _split_fun<Args...>{};
+
     // =======================================================
 
     template<std::size_t A, std::size_t B, view Tpl>
