@@ -17,6 +17,7 @@ namespace kaixo {
     struct _s_enum {};
     struct _s_array {};
     struct _s_aggregate {};
+    struct _s_functor {};
     struct _s_memfun {};
     struct _s_value {};
     struct _s_templated {};
@@ -90,13 +91,25 @@ namespace kaixo {
     };
 
     template<class ...Tys>
+    struct specialized_info_fun3 : specialized_info_fun2<Tys...> {
+        using object = info<typename detail::function_info<Tys>::object...>;
+    };
+
+    template<class ...Tys>
+        requires ((detail::callable_type<Tys> && ...) && (concepts::member_function_pointer<Tys> || ...))
+    struct specialized_info<Tys...> : specialized_info_fun3<Tys...> {
+        using _selected_specialization = _s_memfun;
+    };
+    
+    template<class ...Tys>
         requires ((detail::callable_type<Tys> && ...) && (concepts::pointer<Tys> || ...))
     struct specialized_info<Tys...> : specialized_info_fun1<Tys...> {
         using _selected_specialization = _s_fun_ptr;
     };
 
     template<class ...Tys>
-        requires ((detail::callable_type<Tys> && ...) && (!concepts::pointer<Tys> && ...))
+        requires ((detail::callable_type<Tys> && ...) && (!concepts::pointer<Tys> && ...) 
+          && (!concepts::member_function_pointer<Tys> && ...) && (!concepts::aggregate<Tys> && ...))
     struct specialized_info<Tys...> : specialized_info_fun2<Tys...> {
         using _selected_specialization = _s_fun;
     };
@@ -178,12 +191,23 @@ namespace kaixo {
      * Specialization for structs, contains information on members.
      */
     template<class ...Tys>
-        requires ((concepts::aggregate<Tys> && ...) && (!concepts::array<Tys> && ...))
-    struct specialized_info<Tys...> {
-        using _selected_specialization = _s_aggregate;
-
+    struct specialized_info_struct {
         using members = info<struct_members_t<Tys>...>;
         using struct_size = info<value_t<struct_size_v<Tys>>...>;
+    };
+
+    template<class ...Tys>
+        requires ((concepts::aggregate<Tys> && ...) && (!concepts::array<Tys> && ...) 
+          && (!detail::callable_type<Tys> && ...))
+    struct specialized_info<Tys...> : specialized_info_struct<Tys...> {
+        using _selected_specialization = _s_aggregate;
+    };
+          
+    template<class ...Tys>
+        requires ((concepts::aggregate<Tys> && ...) && (!concepts::array<Tys> && ...) 
+          && (detail::callable_type<Tys> && ...))
+    struct specialized_info<Tys...> : specialized_info_struct<Tys...>, specialized_info_fun2<Tys...> {
+        using _selected_specialization = _s_functor;
     };
 
     /**
@@ -476,9 +500,6 @@ namespace kaixo {
         using add_rvalue_reference = info<kaixo::add_rvalue_reference_t<Tys>...>;
         using remove_pointer = info<kaixo::remove_pointer_t<Tys>...>;
         using add_pointer = info<kaixo::add_pointer_t<Tys>...>;
-
-        template<class Ty> using to_function_args = info<Ty(Tys...)>;
-        template<class Ty> using to_member_pointer = info<kaixo::remove_reference_t<Tys> Ty::* ...>;
     };
 
     /**

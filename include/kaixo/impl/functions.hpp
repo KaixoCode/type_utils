@@ -126,10 +126,7 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     // =======================================================
 
     template<class ...Ty> requires (sizeof...(Ty) <= 1)
-    struct arguments {
-        using type = info<>;
-        using _type = type;
-    };
+    struct arguments;
 
     template<detail::callable_type Ty>
     struct arguments<Ty> {
@@ -150,14 +147,11 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     // =======================================================
     
     template<class ...Ty> requires (sizeof...(Ty) <= 1)
-    struct return_type {
-        using type = info<>;
-        using _type = type;
-    };
+    struct return_type;
 
     template<detail::callable_type Ty>
     struct return_type<Ty> {
-        using type = detail::function_info<Ty>::result;
+        using type = detail::function_info<Ty>::result::type;
         using _type = type;
     };
 
