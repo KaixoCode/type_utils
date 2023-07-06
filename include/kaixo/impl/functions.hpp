@@ -166,5 +166,20 @@ struct function_info_impl<R(*)(Args...) NOEXCEPT> {                             
     using return_type_t = return_type<Ty...>::_type;
 
     // =======================================================
+    
+    template<class R, class ...Tys>
+    struct to_function {
+        using type = R(Tys...);
+    };
+
+    template<class R, class ...Tys>
+    struct to_function<R, info<Tys...>> {
+        using type = R(Tys...);
+    };
+
+    template<class R, class ...Ty>
+    using to_function_t = to_function<R, Ty...>::type;
+
+    // =======================================================
 
 }
