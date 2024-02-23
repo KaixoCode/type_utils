@@ -1734,6 +1734,7 @@ namespace kaixo {
         struct append : detail::apply_pack<detail::append_impl, Ty, Tys...> {};
 
         template<class Ty>
+            requires concepts::specialization<Ty, info>
         struct append<Ty> {
             template<class ...Tys>
             using type = append<Ty, Tys...>::type;
@@ -1768,6 +1769,7 @@ namespace kaixo {
         struct prepend : detail::apply_pack<detail::prepend_impl, Ty, Tys...> {};
 
         template<class Ty>
+            requires concepts::specialization<Ty, info>
         struct prepend<Ty> {
             template<class ...Tys>
             using type = prepend<Ty, Tys...>::type;
